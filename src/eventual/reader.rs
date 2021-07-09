@@ -1,5 +1,5 @@
 use super::*;
-use crate::error::Closed;
+use crate::{error::Closed, IntoReader};
 use std::collections::HashSet;
 
 pub struct EventualReader<T> {
@@ -8,13 +8,20 @@ pub struct EventualReader<T> {
     unsubscribe_from: Arc<SharedState<T>>,
 }
 
+impl<T> IntoReader for EventualReader<T> {
+    type Output = T;
+    fn into_reader(self) -> EventualReader<Self::Output> {
+        self
+    }
+}
+
 pub struct Next<'a, T> {
     eventual: &'a mut EventualReader<T>,
 }
 
 impl<'a, T> Future for Next<'a, T>
 where
-    T: Eq + Clone,
+    T: Value,
 {
     type Output = Result<T, Closed>;
     // TODO: This is currently checking for a pushed value, but that will require
@@ -49,7 +56,7 @@ impl<T> Drop for EventualReader<T> {
 
 impl<T> EventualReader<T>
 where
-    T: Clone + Eq,
+    T: Value,
 {
     pub fn next(&mut self) -> Next<T> {
         Next { eventual: self }

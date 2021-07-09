@@ -4,14 +4,14 @@ use std::sync::Arc;
 
 pub struct EventualWriter<T>
 where
-    T: Clone + Eq,
+    T: Value,
 {
     state: Arc<SharedState<T>>,
 }
 
 impl<T> Drop for EventualWriter<T>
 where
-    T: Clone + Eq,
+    T: Value,
 {
     fn drop(&mut self) {
         self.write_private(Err(Closed))
@@ -20,7 +20,7 @@ where
 
 impl<T> EventualWriter<T>
 where
-    T: Clone + Eq,
+    T: Value,
 {
     pub(crate) fn new(state: Arc<SharedState<T>>) -> Self {
         Self { state }

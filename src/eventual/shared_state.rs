@@ -5,7 +5,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use super::change::Change;
+use super::{change::Change, *};
 
 pub struct SharedState<T> {
     // This takes a cue from the .NET event implementation
@@ -20,7 +20,7 @@ pub struct SharedState<T> {
 
 impl<T> SharedState<T>
 where
-    T: Clone + Eq,
+    T: Value,
 {
     pub fn new() -> Self {
         Self {

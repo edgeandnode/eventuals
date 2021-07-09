@@ -19,7 +19,7 @@ pub struct Change<T> {
 
 impl<T> Change<T>
 where
-    T: Clone + Eq,
+    T: Value,
 {
     pub fn new() -> Self {
         Self {

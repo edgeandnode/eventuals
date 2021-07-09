@@ -14,6 +14,6 @@ mod shared_state;
 mod writer;
 use change::Change;
 
-pub(self) use shared_state::*;
+pub(self) use {crate::Value, shared_state::*};
 
 pub use {eventual::Eventual, reader::EventualReader, writer::EventualWriter};
