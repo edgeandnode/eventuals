@@ -1,5 +1,6 @@
 use crate::*;
-use std::future::Future;
+use std::time::Duration;
+use std::{future::Future, time::Instant};
 use tokio;
 
 pub fn map<E, I, O, F, Fut>(source: E, mut f: F) -> Eventual<O>
@@ -19,4 +20,13 @@ where
         }
     });
     readers
+}
+
+pub fn timer(interval: Duration) -> Eventual<Instant> {
+    let (mut writer, eventual) = Eventual::new();
+    tokio::spawn(async move {
+        writer.write(Instant::now());
+        tokio::time::sleep(interval).await;
+    });
+    eventual
 }
