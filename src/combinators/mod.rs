@@ -13,18 +13,22 @@ where
 {
     let mut source = source.into_reader();
 
+    // TODO: This probably isn't going to work. Borrow checker for the first,
+    // and the second isn't the correct signature for TryFutureExt
+    //Eventual::spawn_loop(move || async move { Ok(f(source.next().await?).await) })
+    //Eventual::spawn_loop(move || source.next().map_ok(f))
+
     Eventual::spawn(|mut writer| async move {
         while let Ok(v) = source.next().await {
-            writer.write(f(v).await)?;
+            writer.write(f(v).await);
         }
-        Ok(())
     })
 }
 
 pub fn timer(interval: Duration) -> Eventual<Instant> {
     Eventual::spawn(move |mut writer| async move {
         loop {
-            writer.write(Instant::now())?;
+            writer.write(Instant::now());
             tokio::time::sleep(interval).await;
         }
     })

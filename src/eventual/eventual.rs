@@ -17,10 +17,23 @@ where
         (EventualWriter::new(&state), Eventual { state })
     }
 
+    // TODO: Probably delete this if it doesn't work out.
+    pub fn spawn_loop<F, Fut>(mut f: F) -> Self
+    where
+        F: 'static + Send + FnMut() -> Fut,
+        Fut: Future<Output = Result<T, Closed>> + Send,
+    {
+        Eventual::spawn(move |mut writer| async move {
+            while let Ok(v) = f().await {
+                writer.write(v)
+            }
+        })
+    }
+
     pub fn spawn<F, Fut>(f: F) -> Self
     where
         F: 'static + Send + FnOnce(EventualWriter<T>) -> Fut,
-        Fut: Future<Output = Result<(), Closed>> + Send + 'static,
+        Fut: Future<Output = ()> + Send,
     {
         let (writer, eventual) = Eventual::new();
         tokio::spawn(async move {
@@ -28,11 +41,12 @@ where
             // are dropped. Ok to ignore this.
             // TODO: Enable closed waiting
             //let closed = writer.closed();
-            let _ignore = select!(
-                _ = f(writer) => {}
+
+            select!(
+                _ = async { f(writer).await }  => {}
                 //_ = closed => {}
             );
-        }); // TODO: Return JoinHandle?
+        });
         eventual
     }
 }

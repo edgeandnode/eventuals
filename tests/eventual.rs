@@ -13,14 +13,14 @@ async fn dropped_writer_closes() {
 async fn can_observe_value_written_after_subscribe() {
     let (mut writer, eventual) = Eventual::new();
     let mut read_0 = eventual.subscribe();
-    writer.write(5).unwrap();
+    writer.write(5);
     assert_eq!(read_0.next().await, Ok(5));
 }
 
 #[test]
 async fn can_observe_value_written_before_subscribe() {
     let (mut writer, eventual) = Eventual::new();
-    writer.write(5).unwrap();
+    writer.write(5);
     let mut read_0 = eventual.subscribe();
     assert_eq!(read_0.next().await, Ok(5));
 }
@@ -29,8 +29,8 @@ async fn can_observe_value_written_before_subscribe() {
 async fn only_most_recent_value_is_observed() {
     let (mut writer, eventual) = Eventual::new();
     let mut read_0 = eventual.subscribe();
-    writer.write(5).unwrap();
-    writer.write(10).unwrap();
+    writer.write(5);
+    writer.write(10);
     assert_eq!(read_0.next().await, Ok(10));
 }
 
@@ -41,11 +41,11 @@ async fn drop_doesnt_interfere() {
     let (mut writer, eventual) = Eventual::new();
     let mut read_0 = eventual.subscribe();
     let mut read_1 = eventual.subscribe();
-    writer.write(5).unwrap();
-    writer.write(10).unwrap();
+    writer.write(5);
+    writer.write(10);
     assert_eq!(read_0.next().await, Ok(10));
     drop(read_0);
-    writer.write(1).unwrap();
+    writer.write(1);
     assert_eq!(read_1.next().await, Ok(1));
 }
 
@@ -61,17 +61,17 @@ async fn can_message_pass() {
         let mut sum = 0;
         while let Ok(v) = eventual_a.next().await {
             sum += v;
-            writer_b.write(v + 1).unwrap();
+            writer_b.write(v + 1);
         }
         sum
     });
 
     let a = tokio::spawn(async move {
-        writer_a.write(0).unwrap();
+        writer_a.write(0);
         let first = eventual_b.next().await.unwrap();
-        writer_a.write(first + 1).unwrap();
+        writer_a.write(first + 1);
         let second = eventual_b.next().await.unwrap();
-        writer_a.write(second + 1).unwrap();
+        writer_a.write(second + 1);
         assert_eq!(eventual_b.next().await, Ok(5));
         drop(writer_a);
         assert_eq!(eventual_b.next().await, Err(Closed));
@@ -82,17 +82,7 @@ async fn can_message_pass() {
     assert_eq!(b.unwrap(), 6);
 }
 
-#[test]
-async fn writer_quits_when_last_readers_dropped() {
-    let (mut writer, eventual) = Eventual::new();
-    writer.write(5).unwrap();
-    let mut reader = eventual.subscribe();
-    drop(eventual);
-    assert_eq!(Ok(5), reader.next().await);
-    drop(reader);
-    assert!(writer.write(10).is_err());
-}
-
+/*
 #[test]
 async fn chained_eventuals_drop() {
     // TODO: Get a source eventual, map it, and consume the result, then drop
@@ -104,3 +94,4 @@ async fn chained_eventuals_drop() {
     // intermediates transiently hold values (seems complicated either way).
     todo!();
 }
+*/
