@@ -13,7 +13,7 @@ where
 {
     pub fn new() -> (EventualWriter<T>, Self) {
         let state = Arc::new(SharedState::new());
-        (EventualWriter::new(state.clone()), Eventual { state })
+        (EventualWriter::new(&state), Eventual { state })
     }
 }
 
