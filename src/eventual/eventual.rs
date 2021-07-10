@@ -15,6 +15,20 @@ where
         let state = Arc::new(SharedState::new());
         (EventualWriter::new(&state), Eventual { state })
     }
+
+    pub fn spawn<F, Fut>(f: F) -> Self
+    where
+        F: 'static + Send + FnOnce(EventualWriter<T>) -> Fut,
+        Fut: Future<Output = Result<(), Closed>> + Send + 'static,
+    {
+        let (writer, eventual) = Eventual::new();
+        tokio::spawn(async move {
+            // This would return an error if the readers
+            // are dropped. Ok to ignore this.
+            let _ignore = f(writer).await;
+        }); // TODO: Return JoinHandle?
+        eventual
+    }
 }
 
 impl<T> Eventual<T>
