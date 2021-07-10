@@ -92,3 +92,15 @@ async fn writer_quits_when_last_readers_dropped() {
     drop(reader);
     assert!(writer.write(10).is_err());
 }
+
+#[test]
+async fn chained_eventuals_drop() {
+    // TODO: Get a source eventual, map it, and consume the result, then drop
+    // and verify the write fails. This probably doesn't work because the map
+    // eventual wouldn't notice it was dead because it doesn't write?. It might
+    // work, it just would be delayed and drop one "layer" at a time. We could
+    // get it to work by notifying the eventual (complicating the API, requiring
+    // a join!) or maybe with something fancy using weakrefs for eg: map so that
+    // intermediates transiently hold values (seems complicated either way).
+    todo!();
+}

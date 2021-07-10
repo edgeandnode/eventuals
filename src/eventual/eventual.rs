@@ -2,6 +2,7 @@ use crate::IntoReader;
 
 use super::shared_state::SharedState;
 use super::*;
+use tokio::select;
 
 pub struct Eventual<T> {
     state: Arc<SharedState<T>>,
@@ -25,7 +26,12 @@ where
         tokio::spawn(async move {
             // This would return an error if the readers
             // are dropped. Ok to ignore this.
-            let _ignore = f(writer).await;
+            // TODO: Enable closed waiting
+            //let closed = writer.closed();
+            let _ignore = select!(
+                _ = f(writer) => {}
+                //_ = closed => {}
+            );
         }); // TODO: Return JoinHandle?
         eventual
     }

@@ -28,6 +28,11 @@ where
         }
     }
 
+    // TODO: impl Future
+    pub fn closed(&self) -> Pin<Box<dyn Send + Future<Output = ()>>> {
+        todo!()
+    }
+
     // This doesn't strictly need to take &mut self. Consider.
     // (Though if we want to use ArcSwap it certainly makes it easier)
     pub fn write(&mut self, value: T) -> Result<(), Closed> {
