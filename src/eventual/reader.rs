@@ -8,7 +8,10 @@ pub struct EventualReader<T> {
     unsubscribe_from: Arc<SharedState<T>>,
 }
 
-impl<T> IntoReader for EventualReader<T> {
+impl<T> IntoReader for EventualReader<T>
+where
+    T: Value,
+{
     type Output = T;
     fn into_reader(self) -> EventualReader<Self::Output> {
         self

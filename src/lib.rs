@@ -1,5 +1,5 @@
 mod eventual;
-pub use eventual::{Eventual, EventualReader, EventualWriter};
+pub use eventual::*;
 pub mod error;
 pub use error::Closed;
 mod combinators;
@@ -9,7 +9,7 @@ pub use combinators::*;
 // EventualReader into functions.
 // TODO: Implement
 pub trait IntoReader {
-    type Output;
+    type Output: Value;
     fn into_reader(self) -> EventualReader<Self::Output>;
 }
 

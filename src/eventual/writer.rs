@@ -1,5 +1,8 @@
+use futures::{channel::oneshot::Receiver, future::Shared};
+
 use super::*;
 use crate::error::Closed;
+use futures::FutureExt;
 use std::sync::{Arc, Weak};
 
 pub struct EventualWriter<T>
@@ -7,6 +10,7 @@ where
     T: Value,
 {
     state: Weak<SharedState<T>>,
+    closed: Shared<Receiver<()>>,
 }
 
 impl<T> Drop for EventualWriter<T>
@@ -22,15 +26,15 @@ impl<T> EventualWriter<T>
 where
     T: Value,
 {
-    pub(crate) fn new(state: &Arc<SharedState<T>>) -> Self {
+    pub(crate) fn new(state: &Arc<SharedState<T>>, closed: Receiver<()>) -> Self {
         Self {
             state: Arc::downgrade(state),
+            closed: closed.shared(),
         }
     }
 
-    // TODO: impl Future
-    pub fn closed(&self) -> Pin<Box<dyn Send + Future<Output = ()>>> {
-        todo!()
+    pub fn closed(&self) -> impl 'static + Future + Send + Unpin {
+        self.closed.clone()
     }
 
     // This doesn't strictly need to take &mut self. Consider.

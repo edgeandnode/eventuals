@@ -1,4 +1,5 @@
 use crate::error::Closed;
+use futures::channel::oneshot::Sender;
 use std::{
     collections::HashSet,
     ops::Deref,
@@ -16,16 +17,29 @@ pub struct SharedState<T> {
     // which makes snapshotting very cheap but updates expensive.
     pub subscribers: Mutex<Arc<HashSet<Change<T>>>>,
     pub last_write: Mutex<Option<Result<T, Closed>>>,
+    writer_notify: Option<Sender<()>>,
+}
+
+impl<T> Drop for SharedState<T> {
+    fn drop(&mut self) {
+        if let Some(notify) = self.writer_notify.take() {
+            // Ignore the possible error because that means
+            // the other side is dropped. The point of notify
+            // is to drop.
+            let _ignore = notify.send(());
+        }
+    }
 }
 
 impl<T> SharedState<T>
 where
     T: Value,
 {
-    pub fn new() -> Self {
+    pub fn new(writer_notify: Sender<()>) -> Self {
         Self {
             subscribers: Mutex::new(Arc::new(HashSet::new())),
             last_write: Mutex::new(None),
+            writer_notify: Some(writer_notify),
         }
     }
 

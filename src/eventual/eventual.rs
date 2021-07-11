@@ -2,6 +2,7 @@ use crate::IntoReader;
 
 use super::shared_state::SharedState;
 use super::*;
+use futures::channel::oneshot;
 use tokio::select;
 
 pub struct Eventual<T> {
@@ -13,8 +14,9 @@ where
     T: Value,
 {
     pub fn new() -> (EventualWriter<T>, Self) {
-        let state = Arc::new(SharedState::new());
-        (EventualWriter::new(&state), Eventual { state })
+        let (sender, receiver) = oneshot::channel();
+        let state = Arc::new(SharedState::new(sender));
+        (EventualWriter::new(&state, receiver), Eventual { state })
     }
 
     // TODO: Probably delete this if it doesn't work out.
@@ -37,14 +39,9 @@ where
     {
         let (writer, eventual) = Eventual::new();
         tokio::spawn(async move {
-            // This would return an error if the readers
-            // are dropped. Ok to ignore this.
-            // TODO: Enable closed waiting
-            //let closed = writer.closed();
-
             select!(
+                _ = writer.closed() => {}
                 _ = async { f(writer).await }  => {}
-                //_ = closed => {}
             );
         });
         eventual
