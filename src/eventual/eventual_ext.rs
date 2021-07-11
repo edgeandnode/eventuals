@@ -1,20 +1,7 @@
 use crate::*;
 use futures::Future;
 
-pub trait EventualExt {
-    type Output: Value;
-    fn map<F, O, Fut>(self, f: F) -> Eventual<O>
-    where
-        F: 'static + Send + FnMut(Self::Output) -> Fut,
-        O: Value,
-        Fut: Send + Future<Output = O>;
-}
-
-impl<E> EventualExt for E
-where
-    E: IntoReader,
-{
-    type Output = <E as IntoReader>::Output;
+pub trait EventualExt: Sized + IntoReader {
     fn map<F, O, Fut>(self, f: F) -> Eventual<O>
     where
         F: 'static + Send + FnMut(Self::Output) -> Fut,
@@ -24,3 +11,5 @@ where
         map(self, f)
     }
 }
+
+impl<E> EventualExt for E where E: IntoReader {}
