@@ -7,7 +7,6 @@ pub use combinators::*;
 
 // This is a convenience trait to make it easy to pass either an Eventual or an
 // EventualReader into functions.
-// TODO: Implement
 pub trait IntoReader {
     type Output: Value;
     fn into_reader(self) -> EventualReader<Self::Output>;

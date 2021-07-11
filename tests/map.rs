@@ -9,7 +9,7 @@ async fn basic() {
 
     // Format the value and save it in an Arc<String> for
     let format_value = |v| async move { Arc::new(format!("{}", v)) };
-    let mut mapped = map(&eventual, format_value).subscribe();
+    let mut mapped = eventual.map(format_value).subscribe();
 
     assert_eq!(&mapped.next().await.ok().unwrap().as_str(), &"5");
 
