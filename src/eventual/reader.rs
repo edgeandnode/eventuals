@@ -2,6 +2,14 @@ use super::*;
 use crate::{error::Closed, IntoReader};
 use std::collections::HashSet;
 
+// It's tempting here to provide some API that treats the Eventual like a
+// Stream. That would be bad though, because it would expose all the APIs that
+// come with stream. For example, someone could call `.map` on a Stream, but
+// that would be bad because `.map` on Stream and `.map` on Eventual have very
+// different semantics. In general, Stream has very different semantics. It even
+// has a size_hint - a Stream is a progressively available Vec (distinct
+// values), but an Eventual is an eventualy consistent and updating "latest"
+// value which infers no sequence and may drop intermediate values.
 pub struct EventualReader<T> {
     change: Change<T>,
     prev: Option<Result<T, Closed>>,

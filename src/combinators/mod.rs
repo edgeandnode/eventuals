@@ -33,3 +33,13 @@ pub fn timer(interval: Duration) -> Eventual<Instant> {
         }
     })
 }
+
+// TODO: Add join and throttle
+//
+// TODO: Add pipe? The "GC" semantics make this unclear. The idea
+// behind pipe is to produce some side effect, which is a desirable
+// end goal for eventuals (eg: pipe this value into a UI, or log the latest)
+// but the part that is not clear here is what to do when the UI goes out of
+// scope. Should pipe provide an explicit handle that cancels on drop?
+//
+// TODO: Probably do not add filter or reduce, they don't make as much sense for eventuals.
