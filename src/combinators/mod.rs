@@ -134,6 +134,25 @@ impl PipeHandle {
     }
 }
 
+pub fn handle_errors<E, F, T, Error>(source: E, f: F) -> Eventual<T>
+where
+    E: IntoReader<Output = Result<T, Error>>,
+    F: 'static + Send + Fn(Error),
+    T: Value,
+    Error: Value,
+{
+    let mut reader = source.into_reader();
+
+    Eventual::spawn(move |mut writer| async move {
+        loop {
+            match reader.next().await? {
+                Ok(v) => writer.write(v),
+                Err(e) => f(e),
+            }
+        }
+    })
+}
+
 //pub fn retry(
 
 // TODO: Retry

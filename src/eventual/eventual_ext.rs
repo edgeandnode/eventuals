@@ -28,3 +28,25 @@ pub trait EventualExt: Sized + IntoReader {
 }
 
 impl<E> EventualExt for E where E: IntoReader {}
+
+pub trait TryEventualExt<Ok, Err>: Sized + IntoReader<Output = Result<Ok, Err>>
+where
+    Ok: Value,
+    Err: Value,
+{
+    #[inline]
+    fn handle_errors<F>(self, f: F) -> Eventual<Ok>
+    where
+        F: 'static + Send + Fn(Err),
+    {
+        handle_errors(self, f)
+    }
+}
+
+impl<E, Ok, Err> TryEventualExt<Ok, Err> for E
+where
+    E: IntoReader<Output = Result<Ok, Err>>,
+    Ok: Value,
+    Err: Value,
+{
+}
