@@ -33,8 +33,6 @@ where
         cmp: &Option<Result<T, Closed>>,
         cx: &mut Context,
     ) {
-        // TODO: I think it should be possible to go full lockfree
-
         let mut lock = self.inner.lock().unwrap();
         if let ChangeVal::Value(value) = &mut *lock {
             if value != cmp {
@@ -55,9 +53,6 @@ where
             // value twice. Notice that the former is apocalyptic (missed
             // updates) and the later just drains some performance for an extra
             // equality check on the receiving end.
-            // TODO: The value can use optimistic concurrency as long as
-            // the read/write is synchronized with SeqCst AND the write lock
-            // here is held. The value must be read from WITHIN the lock.
             let value = value.lock().unwrap();
             let mut inner = self.inner.lock().unwrap();
             let mut update = ChangeVal::Value(value.as_ref().map(|v| v.clone()));

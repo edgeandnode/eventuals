@@ -19,19 +19,6 @@ where
         (EventualWriter::new(&state, receiver), Eventual { state })
     }
 
-    // TODO: Probably delete this if it doesn't work out.
-    pub fn spawn_loop<F, Fut>(mut f: F) -> Self
-    where
-        F: 'static + Send + FnMut() -> Fut,
-        Fut: Future<Output = Result<T, Closed>> + Send,
-    {
-        Eventual::spawn(move |mut writer| async move {
-            while let Ok(v) = f().await {
-                writer.write(v)
-            }
-        })
-    }
-
     pub fn spawn<F, Fut>(f: F) -> Self
     where
         F: 'static + Send + FnOnce(EventualWriter<T>) -> Fut,

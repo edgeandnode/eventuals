@@ -76,7 +76,6 @@ where
     pub(crate) fn new(state: Arc<SharedState<T>>) -> Self {
         let change: Change<T> = Change::new();
         {
-            // TODO: This can use optimistic concurrency with a CAS loop.
             let mut lock = state.subscribers.lock().unwrap();
             let mut updated: HashSet<_> = lock.deref().deref().clone();
             updated.insert(change.clone());
