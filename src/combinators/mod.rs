@@ -14,8 +14,8 @@ where
     let mut source = source.into_reader();
 
     Eventual::spawn(|mut writer| async move {
-        while let Ok(v) = source.next().await {
-            writer.write(f(v).await);
+        loop {
+            writer.write(f(source.next().await?).await);
         }
     })
 }
@@ -47,25 +47,13 @@ where
         let mut ab = loop {
             select! {
                 a_value = a.next() => {
-                    match a_value {
-                        Ok(a_value) => {
-                            if ab.0.replace(a_value).is_none() {
-                                count += 1;
-                            }
-                        },
-                        Err(_) => { return ; }
+                    if ab.0.replace(a_value?).is_none() {
+                        count += 1;
                     }
                 }
                 b_value = b.next() => {
-                    match b_value {
-                        Ok(b_value) => {
-                            if ab.1.replace(b_value).is_none() {
-                                count += 1;
-                            }
-                        },
-                        Err(_) => {
-                            return;
-                        }
+                    if ab.1.replace(b_value?).is_none() {
+                        count += 1;
                     }
                 }
             }
@@ -78,16 +66,10 @@ where
 
             select! {
                 a_value = a.next() => {
-                    match a_value {
-                        Ok(a_value) => { ab.0 = a_value; }
-                        Err(_) => { return; }
-                    }
+                    ab.0 = a_value?;
                 }
                 b_value = b.next() => {
-                    match b_value {
-                        Ok(b_value) => { ab.1 = b_value; }
-                        Err(_) => { return; }
-                    }
+                    ab.1 = b_value?;
                 }
             }
         }
@@ -101,7 +83,8 @@ where
     let mut read = read.into_reader();
 
     Eventual::spawn(move |mut writer| async move {
-        while let Ok(mut next) = read.next().await {
+        loop {
+            let mut next = read.next().await?;
             let end = time::Instant::now() + duration;
             loop {
                 // Allow replacing the value until the time is up. This
@@ -110,11 +93,7 @@ where
                 // common-ts for now.
                 select! {
                     n = read.next() => {
-                        if let Ok(n) = n {
-                            next = n;
-                        } else {
-                            return;
-                        }
+                        next = n?;
                     }
                     _ = time::sleep_until(end) => {
                         break;
@@ -126,10 +105,17 @@ where
     })
 }
 
+//pub fn retry(
+
+// TODO: Retry
+// TODO: HandleErrors
+// TODO: Consider re-exporting ByAddress<Arc<T>>. One nice thing about
+// having a local version is that it would allow this lib to impl things
+// like Error if ByAddress isn't already.
 // TODO: Add pipe? The "GC" semantics make this unclear. The idea
 // behind pipe is to produce some side effect, which is a desirable
 // end goal for eventuals (eg: pipe this value into a UI, or log the latest)
 // but the part that is not clear here is what to do when the UI goes out of
 // scope. Should pipe provide an explicit handle that cancels on drop?
 //
-// TODO: Probably do not add filter or reduce, they don't make as much sense for eventuals.
+// TODO: Eventual.value

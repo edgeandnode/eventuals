@@ -1,8 +1,8 @@
-use crate::IntoReader;
-
 use super::shared_state::SharedState;
 use super::*;
+use crate::IntoReader;
 use futures::channel::oneshot;
+use futures::never::Never;
 use tokio::select;
 
 pub struct Eventual<T> {
@@ -22,7 +22,7 @@ where
     pub fn spawn<F, Fut>(f: F) -> Self
     where
         F: 'static + Send + FnOnce(EventualWriter<T>) -> Fut,
-        Fut: Future<Output = ()> + Send,
+        Fut: Future<Output = Result<Never, Closed>> + Send,
     {
         let (writer, eventual) = Eventual::new();
         tokio::spawn(async move {
