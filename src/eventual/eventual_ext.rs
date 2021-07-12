@@ -17,6 +17,14 @@ pub trait EventualExt: Sized + IntoReader {
     fn throttle(self, duration: Duration) -> Eventual<Self::Output> {
         throttle(self, duration)
     }
+
+    #[inline]
+    fn pipe<F>(self, f: F) -> PipeHandle
+    where
+        F: 'static + Send + FnMut(Self::Output),
+    {
+        pipe(self, f)
+    }
 }
 
 impl<E> EventualExt for E where E: IntoReader {}

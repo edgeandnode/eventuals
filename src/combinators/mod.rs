@@ -1,4 +1,5 @@
 use crate::*;
+use futures::never::Never;
 use std::time::Duration;
 use std::{future::Future, time::Instant};
 use tokio::{self, select, time};
@@ -103,6 +104,34 @@ where
             writer.write(next);
         }
     })
+}
+
+/// Produce a side effect with the latest values of an eventual
+pub fn pipe<E, F>(reader: E, mut f: F) -> PipeHandle
+where
+    E: IntoReader,
+    F: 'static + Send + FnMut(E::Output),
+{
+    let mut reader = reader.into_reader();
+
+    PipeHandle::new(Eventual::spawn(
+        move |_writer: EventualWriter<Never>| async move {
+            loop {
+                f(reader.next().await?);
+            }
+        },
+    ))
+}
+
+/// Pipe ceases when this is dropped
+pub struct PipeHandle {
+    _inner: Eventual<Never>,
+}
+
+impl PipeHandle {
+    fn new(eventual: Eventual<Never>) -> Self {
+        Self { _inner: eventual }
+    }
 }
 
 //pub fn retry(
