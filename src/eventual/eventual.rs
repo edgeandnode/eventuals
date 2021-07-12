@@ -58,6 +58,7 @@ where
 }
 
 impl<T> Clone for Eventual<T> {
+    #[inline]
     fn clone(&self) -> Self {
         Self {
             state: self.state.clone(),
@@ -70,6 +71,18 @@ where
     T: Value,
 {
     type Output = T;
+    #[inline]
+    fn into_reader(self) -> EventualReader<Self::Output> {
+        self.subscribe()
+    }
+}
+
+impl<T> IntoReader for Eventual<T>
+where
+    T: Value,
+{
+    type Output = T;
+    #[inline]
     fn into_reader(self) -> EventualReader<Self::Output> {
         self.subscribe()
     }

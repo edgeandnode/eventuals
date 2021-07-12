@@ -2,6 +2,7 @@ use crate::*;
 use futures::Future;
 
 pub trait EventualExt: Sized + IntoReader {
+    #[inline]
     fn map<F, O, Fut>(self, f: F) -> Eventual<O>
     where
         F: 'static + Send + FnMut(Self::Output) -> Fut,
