@@ -1,7 +1,7 @@
 use crate::*;
 use std::time::Duration;
 use std::{future::Future, time::Instant};
-use tokio::{self, select};
+use tokio::{self, select, time};
 
 pub fn map<E, I, O, F, Fut>(source: E, mut f: F) -> Eventual<O>
 where
@@ -29,7 +29,7 @@ pub fn timer(interval: Duration) -> Eventual<Instant> {
     Eventual::spawn(move |mut writer| async move {
         loop {
             writer.write(Instant::now());
-            tokio::time::sleep(interval).await;
+            time::sleep(interval).await;
         }
     })
 }
@@ -99,8 +99,38 @@ where
     })
 }
 
-// TODO: Add throttle
-//
+pub fn throttle<E>(read: E, duration: Duration) -> Eventual<E::Output>
+where
+    E: IntoReader,
+{
+    let mut read = read.into_reader();
+
+    Eventual::spawn(move |mut writer| async move {
+        while let Ok(mut next) = read.next().await {
+            let end = time::Instant::now() + duration;
+            loop {
+                // Allow replacing the value until the time is up. This
+                // necessarily introduces latency but de-duplicates when there
+                // are intermittent bursts. Not sure what is better. Matching
+                // common-ts for now.
+                select! {
+                    n = read.next() => {
+                        if let Ok(n) = n {
+                            next = n;
+                        } else {
+                            return;
+                        }
+                    }
+                    _ = time::sleep_until(end) => {
+                        break;
+                    }
+                }
+            }
+            writer.write(next);
+        }
+    })
+}
+
 // TODO: Add pipe? The "GC" semantics make this unclear. The idea
 // behind pipe is to produce some side effect, which is a desirable
 // end goal for eventuals (eg: pipe this value into a UI, or log the latest)

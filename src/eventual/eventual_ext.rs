@@ -1,5 +1,6 @@
 use crate::*;
 use futures::Future;
+use std::time::Duration;
 
 pub trait EventualExt: Sized + IntoReader {
     #[inline]
@@ -10,6 +11,11 @@ pub trait EventualExt: Sized + IntoReader {
         Fut: Send + Future<Output = O>,
     {
         map(self, f)
+    }
+
+    #[inline]
+    fn throttle(self, duration: Duration) -> Eventual<Self::Output> {
+        throttle(self, duration)
     }
 }
 
