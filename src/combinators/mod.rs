@@ -153,17 +153,17 @@ where
     })
 }
 
-//pub fn retry(
+// TODO: Retry. This is needed to be supported because retry should be eventual
+// aware in that it will only retry if there is no update available, instead
+// preferring the update. It's a little tricky to write in a general sense because
+// it is not clear _what_ is being retried. A retry can't force an upstream map
+// to produce a value again. You could couple the map and retry API, but that's
+// not great. The only thing I can think of is to have a function produce an eventual
+// upon encountering an error. That seems like the right choice but need to let it simmer.
 
-// TODO: Retry
 // TODO: HandleErrors
 // TODO: Consider re-exporting ByAddress<Arc<T>>. One nice thing about
 // having a local version is that it would allow this lib to impl things
 // like Error if ByAddress isn't already.
-// TODO: Add pipe? The "GC" semantics make this unclear. The idea
-// behind pipe is to produce some side effect, which is a desirable
-// end goal for eventuals (eg: pipe this value into a UI, or log the latest)
-// but the part that is not clear here is what to do when the UI goes out of
-// scope. Should pipe provide an explicit handle that cancels on drop?
 //
 // TODO: Eventual.value

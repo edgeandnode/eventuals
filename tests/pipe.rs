@@ -1,6 +1,6 @@
 use eventuals::*;
-use std::time::Duration;
-use tokio::test;
+use std::sync::Arc;
+use tokio::{sync::Notify, test};
 
 #[test]
 async fn produces_side_effect() {
@@ -19,24 +19,40 @@ async fn produces_side_effect() {
 #[test]
 async fn stops_after_drop() {
     let (mut writer, eventual) = Eventual::new();
+    let notify = Arc::new(Notify::new());
+    struct NotifyOnDrop {
+        notify: Arc<Notify>,
+    }
+    impl Drop for NotifyOnDrop {
+        fn drop(&mut self) {
+            self.notify.notify_one();
+        }
+    }
+    let notify_on_drop = NotifyOnDrop {
+        notify: notify.clone(),
+    };
 
     let pipe = eventual.pipe(move |v| {
         if v == 2 {
             panic!();
         }
+        // Notifies if it either passed the panic,
+        // or will never be called again.
+        notify_on_drop.notify.notify_one();
     });
 
-    // TODO: This test passing depends on the sleeps. In part this is because
-    // the pipe is in a spawned task. If we want to remove the first sleep so
+    // This test passing depends on the notifies. In part this is because
+    // the pipe is in a spawned task. If we want to remove the first notify so
     // that pipe stops _immediately_ we may have to have pipe check a weak
     // reference to the reader each time it acts. Or, use some version of
-    // select! that prefers cancellation over writing in spawn. To remove the
-    // second sleep we would need to do some fancy things in this test to know
-    // that not only has the callback not been called, but also that it won't
-    // ever be called in the future (after the test passes).
+    // select! that prefers cancellation over writing in spawn.
     writer.write(1);
+    notify.notified().await;
     drop(pipe);
-    tokio::time::sleep(Duration::from_millis(10)).await;
+    notify.notified().await;
+    // We know this can't panic, because we have been notified that the
+    // closure has been dropped and can't be called again. Unfortunately
+    // I can't think of a good way to verify it didn't panic. But, surely
+    // it doesn't.
     writer.write(2);
-    tokio::time::sleep(Duration::from_millis(10)).await;
 }
