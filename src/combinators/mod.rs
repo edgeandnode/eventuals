@@ -134,12 +134,12 @@ impl PipeHandle {
     }
 }
 
-pub fn handle_errors<E, F, T, Error>(source: E, f: F) -> Eventual<T>
+pub fn handle_errors<E, F, Ok, Err>(source: E, f: F) -> Eventual<Ok>
 where
-    E: IntoReader<Output = Result<T, Error>>,
-    F: 'static + Send + Fn(Error),
-    T: Value,
-    Error: Value,
+    E: IntoReader<Output = Result<Ok, Err>>,
+    F: 'static + Send + Fn(Err),
+    Ok: Value,
+    Err: Value,
 {
     let mut reader = source.into_reader();
 
@@ -160,8 +160,75 @@ where
 // to produce a value again. You could couple the map and retry API, but that's
 // not great. The only thing I can think of is to have a function produce an eventual
 // upon encountering an error. That seems like the right choice but need to let it simmer.
+//
+// Below is an "interesting" first attempt.
+//
+// This is a retry that is maximimally abstracted.
+// It is somewhat experimental, but makes sense if you
+// want to be able to not tie retry down to any particular
+// other feature (like map). It's also BONKERS. See map_with_rety
+// for usage.
+pub fn retry<Ok, Err, F, Fut>(mut f: F) -> Eventual<Ok>
+where
+    Ok: Value,
+    Err: Value,
+    Fut: Send + Future<Output = Eventual<Result<Ok, Err>>>,
+    F: 'static + Send + FnMut(Option<Err>) -> Fut,
+{
+    Eventual::spawn(move |mut writer| async move {
+        loop {
+            let mut e = f(None).await.subscribe();
+            let mut next = e.next().await;
 
-// TODO: HandleErrors
+            loop {
+                match next {
+                    Ok(Ok(v)) => {
+                        writer.write(v);
+                        next = e.next().await;
+                    }
+                    // TODO: Is this how we want to handle closed?
+                    Err(e) => {
+                        return Err(e);
+                    }
+                    Ok(Err(err)) => {
+                        select! {
+                            e_temp = f(Some(err)) => {
+                                e = e_temp.subscribe();
+                                next = e.next().await;
+                            }
+                            n_temp = e.next() => {
+                                next = n_temp;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    })
+}
+
+pub fn map_with_retry<I, Ok, Err, F, Fut>(source: Eventual<I>, f: F) -> Eventual<Ok>
+where
+    F: 'static + Clone + Send + Fn(I) -> Fut,
+    I: Value,
+    Ok: Value,
+    Err: Value,
+    Fut: Send + Future<Output = Result<Ok, Err>>,
+{
+    retry(move |e| {
+        let reader = source.subscribe();
+        let f = f.clone();
+        async move {
+            if e.is_some() {
+                // TODO: Configurable time via on_error, which will
+                // also allow eg: loggging.
+                tokio::time::sleep(Duration::from_secs(5)).await;
+            }
+            map(reader, f)
+        }
+    })
+}
+
 // TODO: Consider re-exporting ByAddress<Arc<T>>. One nice thing about
 // having a local version is that it would allow this lib to impl things
 // like Error if ByAddress isn't already.
