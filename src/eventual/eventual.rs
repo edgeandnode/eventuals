@@ -45,6 +45,11 @@ where
             change: Some(change),
         }
     }
+
+    #[cfg(feature = "trace")]
+    pub fn subscriber_count(&self) -> usize {
+        self.state.subscribers.lock().unwrap().len()
+    }
 }
 
 pub struct ValueFuture<T> {

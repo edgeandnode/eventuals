@@ -36,17 +36,25 @@ async fn only_most_recent_value_is_observed() {
 
 #[test]
 async fn drop_doesnt_interfere() {
-    // TODO: A dbg! was used to verify that the subscriber count goes to 0 and
-    // there is no leak. A unit test may be required to make that test permanent.
-    let (mut writer, eventual) = Eventual::new();
+    let (mut writer, eventual) = Eventual::<u32>::new();
+    assert_eq!(eventual.subscriber_count(), 0);
     let mut read_0 = eventual.subscribe();
+    assert_eq!(eventual.subscriber_count(), 1);
     let mut read_1 = eventual.subscribe();
+    assert_eq!(eventual.subscriber_count(), 2);
     writer.write(5);
     writer.write(10);
     assert_eq!(read_0.next().await, Ok(10));
     drop(read_0);
+    assert_eq!(eventual.subscriber_count(), 1);
     writer.write(1);
+    // The main point of the test is this line - after
+    // dropping one subscriber we still have our subscriber.
     assert_eq!(read_1.next().await, Ok(1));
+    drop(read_1);
+    // It is also useful to verify that the above test passed
+    // even though drop is in fact working.
+    assert_eq!(eventual.subscriber_count(), 0);
 }
 
 #[test]

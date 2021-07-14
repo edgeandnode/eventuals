@@ -233,4 +233,3 @@ where
 // having a local version is that it would allow this lib to impl things
 // like Error if ByAddress isn't already.
 //
-// TODO: Eventual.value
