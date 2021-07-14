@@ -2,6 +2,7 @@ use super::*;
 
 use by_address::ByAddress;
 use std::{
+    collections::HashSet,
     hash::{Hash, Hasher},
     mem,
     sync::{Arc, Mutex},
@@ -15,6 +16,21 @@ pub enum ChangeVal<T> {
 
 pub struct Change<T> {
     inner: ByAddress<Arc<Mutex<ChangeVal<T>>>>,
+}
+
+pub struct ChangeReader<T> {
+    pub change: Change<T>,
+    pub unsubscribe_from: Arc<SharedState<T>>,
+}
+
+impl<T> Drop for ChangeReader<T> {
+    fn drop(&mut self) {
+        let mut lock = self.unsubscribe_from.subscribers.lock().unwrap();
+        let mut updated: HashSet<_> = lock.deref().deref().clone();
+        if updated.remove(&self.change) {
+            *lock = Arc::new(updated);
+        }
+    }
 }
 
 impl<T> Change<T>

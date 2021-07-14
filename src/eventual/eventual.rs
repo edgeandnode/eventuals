@@ -1,3 +1,4 @@
+use super::change::ChangeReader;
 use super::shared_state::SharedState;
 use super::*;
 use crate::IntoReader;
@@ -33,14 +34,43 @@ where
         });
         eventual
     }
+
+    pub fn subscribe(&self) -> EventualReader<T> {
+        EventualReader::new(self.state.clone())
+    }
+
+    pub fn value(&self) -> ValueFuture<T> {
+        let change = self.state.clone().subscribe();
+        ValueFuture {
+            change: Some(change),
+        }
+    }
 }
 
-impl<T> Eventual<T>
+pub struct ValueFuture<T> {
+    change: Option<ChangeReader<T>>,
+}
+
+impl<T> Future for ValueFuture<T>
 where
     T: Value,
 {
-    pub fn subscribe(&self) -> EventualReader<T> {
-        EventualReader::new(self.state.clone())
+    type Output = Result<T, Closed>;
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let mut swap = None;
+        let prev = None;
+        self.change
+            .as_mut()
+            .unwrap()
+            .change
+            .swap_or_wake(&mut swap, &prev, cx);
+        match swap {
+            None => Poll::Pending,
+            Some(value) => {
+                self.change = None;
+                Poll::Ready(value)
+            }
+        }
     }
 }
 

@@ -6,7 +6,10 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use super::{change::Change, *};
+use super::{
+    change::{Change, ChangeReader},
+    *,
+};
 
 pub struct SharedState<T> {
     // This takes a cue from the .NET event implementation
@@ -55,5 +58,21 @@ where
 
     pub fn notify_one(&self, subscriber: &Change<T>) {
         subscriber.set_value(&self.last_write);
+    }
+
+    pub fn subscribe(self: Arc<Self>) -> ChangeReader<T> {
+        let change: Change<T> = Change::new();
+        {
+            let mut lock = self.subscribers.lock().unwrap();
+            let mut updated: HashSet<_> = lock.deref().deref().clone();
+            updated.insert(change.clone());
+            *lock = Arc::new(updated);
+        }
+        // Must notify AFTER it's in the subscriber list to avoid missing updates.
+        self.notify_one(&change);
+        ChangeReader {
+            change,
+            unsubscribe_from: self,
+        }
     }
 }

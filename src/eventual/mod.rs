@@ -13,7 +13,6 @@ mod eventual_ext;
 mod reader;
 mod shared_state;
 mod writer;
-use change::Change;
 
 pub(self) use {crate::Value, shared_state::*};
 

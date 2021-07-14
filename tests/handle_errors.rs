@@ -39,10 +39,7 @@ async fn basic() {
         // This is not a problem for real use-cases but is for tests. So, without
         // this notify we can see a previous value.
         notify_read.notified().await;
-        assert_eq!(
-            even_numbers.subscribe().next().await.ok().unwrap(),
-            (n / 2) * 2
-        );
+        assert_eq!(even_numbers.value().await.ok().unwrap(), (n / 2) * 2);
     }
 
     assert_eq!(*errors.lock().unwrap(), vec![1, 3, 5, 7, 9]);
