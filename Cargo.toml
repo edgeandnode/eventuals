@@ -4,6 +4,13 @@ version = "0.1.0"
 authors = ["Zac Burns <That3Percent@gmail.com>"]
 edition = "2018"
 license = "MIT"
+description = "Eventually consistent values"
+repository = "https://github.com/edgeandnode/eventuals"
+keywords = ["async", "future", "data-pipeline"]
+categories = ["asynchronous", "concurrency"]
+
+[badges]
+maintenance = { status = "experimental" }
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
