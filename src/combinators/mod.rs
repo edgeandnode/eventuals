@@ -2,7 +2,10 @@ use crate::*;
 use futures::never::Never;
 use std::time::Duration;
 use std::{future::Future, time::Instant};
-use tokio::{self, select, time};
+use tokio::{
+    self, select,
+    time::{sleep, sleep_until},
+};
 
 pub fn map<E, I, O, F, Fut>(source: E, mut f: F) -> Eventual<O>
 where
@@ -25,7 +28,7 @@ pub fn timer(interval: Duration) -> Eventual<Instant> {
     Eventual::spawn(move |mut writer| async move {
         loop {
             writer.write(Instant::now());
-            time::sleep(interval).await;
+            sleep(interval).await;
         }
     })
 }
@@ -86,7 +89,7 @@ where
     Eventual::spawn(move |mut writer| async move {
         loop {
             let mut next = read.next().await?;
-            let end = time::Instant::now() + duration;
+            let end = tokio::time::Instant::now() + duration;
             loop {
                 // Allow replacing the value until the time is up. This
                 // necessarily introduces latency but de-duplicates when there
@@ -96,7 +99,7 @@ where
                     n = read.next() => {
                         next = n?;
                     }
-                    _ = time::sleep_until(end) => {
+                    _ = sleep_until(end) => {
                         break;
                     }
                 }
@@ -222,7 +225,7 @@ where
             if e.is_some() {
                 // TODO: Configurable time via on_error, which will
                 // also allow eg: loggging.
-                tokio::time::sleep(Duration::from_secs(5)).await;
+                sleep(Duration::from_secs(5)).await;
             }
             map(reader, f)
         }
