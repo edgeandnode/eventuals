@@ -33,51 +33,76 @@ pub fn timer(interval: Duration) -> Eventual<Instant> {
     })
 }
 
-// TODO: Put this in a macro to de-duplicate A/B and support more arguments.
-pub fn join<A, Ar, B, Br>(a: Ar, b: Br) -> Eventual<(A, B)>
-where
-    A: Value,
-    B: Value,
-    Ar: IntoReader<Output = A>,
-    Br: IntoReader<Output = B>,
-{
-    let mut a = a.into_reader();
-    let mut b = b.into_reader();
+pub trait Joinable {
+    type Output;
+    fn join(self) -> Eventual<Self::Output>;
+}
 
-    Eventual::spawn(move |mut writer| async move {
-        let mut count = 0;
-        let mut ab = (None, None);
+macro_rules! impl_join {
+    ($len:expr, $($T:ident, $t:ident),*) => {
+        impl<$($T,)*> Joinable for ($($T,)*)
+            where
+                $($T: IntoReader,)*
+        {
+            type Output = ($($T::Output),*);
 
-        let mut ab = loop {
-            select! {
-                a_value = a.next() => {
-                    if ab.0.replace(a_value?).is_none() {
-                        count += 1;
+            #[allow(non_snake_case)]
+            fn join(self) -> Eventual<Self::Output> {
+                let ($($T),*) = self;
+                $(let mut $T = $T.into_reader();)*
+
+                Eventual::spawn(move |mut writer| async move {
+                    // In the first section we wait until all values are available
+                    let mut count:usize = 0;
+                    $(let mut $t = None;)*
+                    let ($(mut $t,)*) = loop {
+                        select! {
+                            $(
+                                next = $T.next() => {
+                                    if $t.replace(next?).is_none() {
+                                        count += 1;
+                                    }
+                                }
+                            )*
+                        }
+                        if count == 2 {
+                            break ($($t.unwrap()),*);
+                        }
+                    };
+                    // Once all values are available, start writing but continue
+                    // to update.
+                    loop {
+                        writer.write(($($t.clone(),)*));
+
+                        select! {
+                            $(
+                                next = $T.next() => {
+                                    $t = next?;
+                                }
+                            )*
+                        }
                     }
-                }
-                b_value = b.next() => {
-                    if ab.1.replace(b_value?).is_none() {
-                        count += 1;
-                    }
-                }
-            }
-            if count == 2 {
-                break (ab.0.unwrap(), ab.1.unwrap());
-            }
-        };
-        loop {
-            writer.write(ab.clone());
-
-            select! {
-                a_value = a.next() => {
-                    ab.0 = a_value?;
-                }
-                b_value = b.next() => {
-                    ab.1 = b_value?;
-                }
+                })
             }
         }
-    })
+    };
+}
+
+macro_rules! impl_joins {
+    ($len:expr, $A:ident, $a:ident) => { };
+    ($len:expr, $A:ident, $a:ident, $($T:ident, $t:ident),+) => {
+        impl_join!($len, $A, $a, $($T, $t),+);
+        impl_joins!($len - 1, $($T, $t),+);
+    }
+}
+
+impl_joins!(12, A, a, B, b, C, c, D, d, E, e, F, f, G, g, H, h, I, i, J, j, K, k, L, l);
+
+pub fn join<J>(joinable: J) -> Eventual<J::Output>
+where
+    J: Joinable,
+{
+    joinable.join()
 }
 
 pub fn throttle<E>(read: E, duration: Duration) -> Eventual<E::Output>
