@@ -1,5 +1,6 @@
 use eventuals::*;
-use tokio::{join, test};
+use std::{sync::Arc, time::Duration};
+use tokio::{join, test, time::sleep};
 
 #[test]
 async fn dropped_writer_closes() {
@@ -90,16 +91,31 @@ async fn can_message_pass() {
     assert_eq!(b.unwrap(), 6);
 }
 
-/*
+// Ensures that eventuals will drop all the way down the chain "immediately"
 #[test]
 async fn chained_eventuals_drop() {
-    // TODO: Get a source eventual, map it, and consume the result, then drop
-    // and verify the write fails. This probably doesn't work because the map
-    // eventual wouldn't notice it was dead because it doesn't write?. It might
-    // work, it just would be delayed and drop one "layer" at a time. We could
-    // get it to work by notifying the eventual (complicating the API, requiring
-    // a join!) or maybe with something fancy using weakrefs for eg: map so that
-    // intermediates transiently hold values (seems complicated either way).
-    todo!();
+    let (mut writer, source) = Eventual::new();
+    let source = Arc::new(source);
+    let mut new_source = source.clone();
+    let mut i = 0;
+    let mapped = loop {
+        new_source = Arc::new(new_source.subscribe().map(|v: u32| async move { v + 1 }));
+        i += 1;
+        if i == 25 {
+            break new_source;
+        }
+    };
+
+    assert_eq!(source.subscriber_count(), 1);
+    assert_eq!(mapped.subscriber_count(), 0);
+
+    writer.write(5);
+    assert_eq!(mapped.value().await, Ok(30));
+
+    assert_eq!(source.subscriber_count(), 1);
+    drop(mapped);
+    // Dropping doesn't happen on the same thread, but
+    // it still should happen before we write a value.
+    sleep(Duration::from_millis(1)).await;
+    assert_eq!(source.subscriber_count(), 0);
 }
-*/
