@@ -1,5 +1,6 @@
 use eventuals::*;
 use std::{
+    error::Error,
     future,
     sync::{Arc, Mutex},
 };
@@ -43,4 +44,36 @@ async fn basic() {
     }
 
     assert_eq!(*errors.lock().unwrap(), vec![1, 3, 5, 7, 9]);
+}
+
+#[test]
+async fn complex_err_with_ptr() {
+    let (mut string_writer, strings) = Eventual::<&'static str>::new();
+
+    // Exists to wrap the err in some "dynamic" error type that does not
+    // impl Value
+    fn bad_parse(s: &str) -> Result<u32, Box<dyn Error + Send + Sync>> {
+        let result: Result<u32, std::num::ParseIntError> = s.parse();
+        result.map_err(|e| e.into())
+    }
+
+    // But if we take the sad dynamic error type and use Ptr on it
+    // we impl Value.
+    let numbers: Eventual<Result<u32, _>> =
+        strings.map(|s| async move { bad_parse(s).map_err(Ptr::new) });
+
+    let (mut errors_writer, only_errors) = Eventual::new();
+    let only_numbers = numbers
+        .subscribe()
+        .handle_errors(move |e| errors_writer.write(e));
+
+    string_writer.write("1");
+
+    assert_eq!(only_numbers.value().await, Ok(1));
+    string_writer.write("a");
+    assert_eq!(
+        &format!("{}", only_errors.value().await.unwrap()),
+        "invalid digit found in string"
+    );
+    assert_eq!(only_numbers.value().await, Ok(1));
 }

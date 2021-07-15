@@ -162,10 +162,10 @@ impl PipeHandle {
     }
 }
 
-pub fn handle_errors<E, F, Ok, Err>(source: E, f: F) -> Eventual<Ok>
+pub fn handle_errors<E, F, Ok, Err>(source: E, mut f: F) -> Eventual<Ok>
 where
     E: IntoReader<Output = Result<Ok, Err>>,
-    F: 'static + Send + Fn(Err),
+    F: 'static + Send + FnMut(Err),
     Ok: Value,
     Err: Value,
 {
@@ -209,16 +209,12 @@ where
             let mut next = e.next().await;
 
             loop {
-                match next {
-                    Ok(Ok(v)) => {
+                match next? {
+                    Ok(v) => {
                         writer.write(v);
                         next = e.next().await;
                     }
-                    // TODO: Is this how we want to handle closed?
-                    Err(e) => {
-                        return Err(e);
-                    }
-                    Ok(Err(err)) => {
+                    Err(err) => {
                         select! {
                             e_temp = f(Some(err)) => {
                                 e = e_temp.subscribe();
@@ -256,8 +252,3 @@ where
         }
     })
 }
-
-// TODO: Consider re-exporting ByAddress<Arc<T>>. One nice thing about
-// having a local version is that it would allow this lib to impl things
-// like Error if ByAddress isn't already.
-//

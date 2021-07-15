@@ -10,6 +10,7 @@ use std::{
 mod change;
 mod eventual;
 mod eventual_ext;
+mod ptr;
 mod reader;
 mod shared_state;
 mod writer;
@@ -17,5 +18,9 @@ mod writer;
 pub(self) use {crate::Value, shared_state::*};
 
 pub use {
-    eventual::Eventual, eventual_ext::EventualExt, reader::EventualReader, writer::EventualWriter,
+    eventual::Eventual,
+    eventual_ext::{EventualExt, TryEventualExt},
+    ptr::Ptr,
+    reader::EventualReader,
+    writer::EventualWriter,
 };

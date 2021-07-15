@@ -37,7 +37,7 @@ where
     #[inline]
     fn handle_errors<F>(self, f: F) -> Eventual<Ok>
     where
-        F: 'static + Send + Fn(Err),
+        F: 'static + Send + FnMut(Err),
     {
         handle_errors(self, f)
     }

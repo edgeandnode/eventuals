@@ -1,6 +1,6 @@
 use super::*;
 
-use by_address::ByAddress;
+use crate::Ptr;
 use std::{
     collections::HashSet,
     hash::{Hash, Hasher},
@@ -15,7 +15,7 @@ pub enum ChangeVal<T> {
 }
 
 pub struct Change<T> {
-    inner: ByAddress<Arc<Mutex<ChangeVal<T>>>>,
+    inner: Ptr<Mutex<ChangeVal<T>>>,
 }
 
 pub struct ChangeReader<T> {
@@ -39,7 +39,7 @@ where
 {
     pub fn new() -> Self {
         Self {
-            inner: ByAddress(Arc::new(Mutex::new(ChangeVal::Value(None)))),
+            inner: Ptr::new(Mutex::new(ChangeVal::Value(None))),
         }
     }
 
