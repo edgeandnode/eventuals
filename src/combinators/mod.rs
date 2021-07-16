@@ -39,8 +39,23 @@ pub trait Joinable {
     fn join(self) -> Eventual<Self::Output>;
 }
 
-macro_rules! impl_join {
+macro_rules! impl_tuple {
     ($len:expr, $($T:ident, $t:ident),*) => {
+        impl<T, $($T,)*> Selectable for ($($T,)*)
+            where
+            $($T: IntoReader<Output = T>,)*
+            // TODO: I don't understand why this bound is required.
+            // It is always the case that this bound is satisfied.
+            Vec<EventualReader<T>>: Selectable,
+        {
+            type Output = <Vec<EventualReader<T>> as Selectable>::Output;
+            fn select(self) -> Eventual<Self::Output> {
+                let ($($t),*) = self;
+                $(let $t = $t.into_reader();)*
+                vec![$($t),*].select()
+            }
+        }
+
         impl<$($T,)*> Joinable for ($($T,)*)
             where
                 $($T: IntoReader,)*
@@ -89,15 +104,15 @@ macro_rules! impl_join {
     };
 }
 
-macro_rules! impl_joins {
+macro_rules! impl_tuples {
     ($len:expr, $A:ident, $a:ident) => { };
     ($len:expr, $A:ident, $a:ident, $($T:ident, $t:ident),+) => {
-        impl_join!($len, $A, $a, $($T, $t),+);
-        impl_joins!($len - 1, $($T, $t),+);
+        impl_tuple!($len, $A, $a, $($T, $t),+);
+        impl_tuples!($len - 1, $($T, $t),+);
     }
 }
 
-impl_joins!(12, A, a, B, b, C, c, D, d, E, e, F, f, G, g, H, h, I, i, J, j, K, k, L, l);
+impl_tuples!(12, A, a, B, b, C, c, D, d, E, e, F, f, G, g, H, h, I, i, J, j, K, k, L, l);
 
 pub fn join<J>(joinable: J) -> Eventual<J::Output>
 where
@@ -150,23 +165,6 @@ where
                 }
             }
         })
-    }
-}
-
-impl<T, A, B> Selectable for (A, B)
-where
-    A: IntoReader<Output = T>,
-    B: IntoReader<Output = T>,
-    // TODO: I don't understand why this bound is required.
-    Vec<EventualReader<T>>: Selectable,
-{
-    type Output = <Vec<EventualReader<T>> as Selectable>::Output;
-    fn select(self) -> Eventual<Self::Output> {
-        let (a, b) = self;
-        let a = a.into_reader();
-        let b = b.into_reader();
-        let ab = vec![a, b];
-        ab.select()
     }
 }
 
