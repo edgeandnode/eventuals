@@ -28,3 +28,4 @@ never = "0.1.0"
 [dev-dependencies]
 tokio = { version="1.8", features=["full"] }
 eventuals = { path=".", features=["trace"] }
+lazy_static = "1.0"

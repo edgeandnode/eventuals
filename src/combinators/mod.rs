@@ -231,22 +231,27 @@ where
     })
 }
 
-pub fn map_with_retry<I, Ok, Err, F, Fut>(source: Eventual<I>, f: F) -> Eventual<Ok>
+pub fn map_with_retry<I, Ok, Err, F, Fut, E, FutE>(
+    source: Eventual<I>,
+    f: F,
+    on_err: E,
+) -> Eventual<Ok>
 where
     F: 'static + Clone + Send + Fn(I) -> Fut,
+    E: 'static + Clone + Send + Sync + Fn(Err) -> FutE,
     I: Value,
     Ok: Value,
     Err: Value,
     Fut: Send + Future<Output = Result<Ok, Err>>,
+    FutE: Send + Future<Output = ()>,
 {
     retry(move |e| {
         let reader = source.subscribe();
         let f = f.clone();
+        let on_err = on_err.clone();
         async move {
-            if e.is_some() {
-                // TODO: Configurable time via on_error, which will
-                // also allow eg: loggging.
-                sleep(Duration::from_secs(5)).await;
+            if let Some(e) = e {
+                on_err(e).await;
             }
             map(reader, f)
         }
