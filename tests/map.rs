@@ -88,13 +88,17 @@ async fn with_retry_gets_new_value() {
         |_| tokio::time::sleep(Duration::from_secs(1000000000000)),
     );
 
-    // Assert that this eventually works
+    // Demonstrate that involiable does not produce a value. At this point retry
+    // should be waiting for either a new value or the new eventual but gets
+    // neither.
     select! {
         _ = inviolable.value() => {
             panic!("Nooooooooo!");
         }
         _ = tokio::time::sleep(Duration::from_millis(10)) => {}
     };
+    // Show that when a new value is written we don't have to wait indefinitely
+    // for the new eventual.
     writer.write(2);
     assert_eq!(inviolable.value().await.unwrap(), ());
 }
