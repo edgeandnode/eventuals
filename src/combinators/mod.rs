@@ -1,5 +1,6 @@
 use crate::*;
-use futures::never::Never;
+use futures::future::select_all;
+use never::Never;
 use std::time::Duration;
 use std::{future::Future, time::Instant};
 use tokio::{
@@ -103,6 +104,70 @@ where
     J: Joinable,
 {
     joinable.join()
+}
+
+pub trait Selectable {
+    type Output;
+    fn select(self) -> Eventual<Self::Output>;
+}
+
+pub fn select<S>(selectable: S) -> Eventual<S::Output>
+where
+    S: Selectable,
+{
+    selectable.select()
+}
+
+impl<R> Selectable for Vec<R>
+where
+    R: IntoReader,
+{
+    type Output = R::Output;
+    fn select(self) -> Eventual<Self::Output> {
+        // TODO: With specialization we can avoid what is essentially an
+        // unnecessary clone when R is EventualReader
+        let mut readers: Vec<_> = self.into_iter().map(|v| v.into_reader()).collect();
+        Eventual::spawn(move |mut writer| async move {
+            loop {
+                if readers.len() == 0 {
+                    return Err(Closed);
+                }
+                let read_futs: Vec<_> = readers.iter_mut().map(|r| r.next()).collect();
+
+                let (output, index, remainder) = select_all(read_futs).await;
+
+                // Ideally, we would want to re-use this list, but in most
+                // cases we can't because it may have been shuffled.
+                drop(remainder);
+
+                match output {
+                    Ok(value) => {
+                        writer.write(value);
+                    }
+                    Err(Closed) => {
+                        readers.remove(index);
+                    }
+                }
+            }
+        })
+    }
+}
+
+impl<T, A, B> Selectable for (A, B)
+where
+    A: IntoReader<Output = T>,
+    B: IntoReader<Output = T>,
+    // TODO: I don't understand why this bound is required.
+    Vec<EventualReader<T>>: Selectable,
+{
+    type Output = <Vec<EventualReader<T>> as Selectable>::Output;
+    fn select(self) -> Eventual<Self::Output> {
+        let (a, b) = self;
+        let a = a.into_reader();
+        let b = b.into_reader();
+        let ab = vec![a, b];
+        ab.select()
+    }
 }
 
 pub fn throttle<E>(read: E, duration: Duration) -> Eventual<E::Output>
