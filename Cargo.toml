@@ -8,6 +8,7 @@ description = "Eventually consistent values"
 repository = "https://github.com/edgeandnode/eventuals"
 keywords = ["async", "future", "data-pipeline"]
 categories = ["asynchronous", "concurrency"]
+readme = "README.md"
 
 [features]
 default = []

@@ -1,0 +1,1 @@
+Eventuals are eventually consistent values that update over time.
