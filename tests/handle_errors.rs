@@ -1,3 +1,5 @@
+#![allow(deprecated)]
+
 use eventuals::*;
 use std::{
     error::Error,

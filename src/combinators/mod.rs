@@ -52,6 +52,7 @@ macro_rules! impl_tuple {
             fn select(self) -> Eventual<Self::Output> {
                 let ($($t),*) = self;
                 $(let $t = $t.into_reader();)*
+                #[allow(deprecated)]
                 vec![$($t),*].select()
             }
         }
@@ -123,13 +124,16 @@ where
 
 pub trait Selectable {
     type Output;
+    #[deprecated = "Not deterministic. This doesn't seem as harmful as filter, because it doesn't appear to miss updates."]
     fn select(self) -> Eventual<Self::Output>;
 }
 
+#[deprecated = "Not deterministic. This doesn't seem as harmful as filter, because it doesn't appear to miss updates."]
 pub fn select<S>(selectable: S) -> Eventual<S::Output>
 where
     S: Selectable,
 {
+    #[allow(deprecated)]
     selectable.select()
 }
 
@@ -225,6 +229,7 @@ impl PipeHandle {
     }
 }
 
+#[deprecated = "Not deterministic. This is a special case of filter. Retry should be better"]
 pub fn handle_errors<E, F, Ok, Err>(source: E, mut f: F) -> Eventual<Ok>
 where
     E: IntoReader<Output = Result<Ok, Err>>,

@@ -35,10 +35,12 @@ where
     Err: Value,
 {
     #[inline]
+    #[deprecated = "Not deterministic. This is a special case of filter. Retry should be better"]
     fn handle_errors<F>(self, f: F) -> Eventual<Ok>
     where
         F: 'static + Send + FnMut(Err),
     {
+        #[allow(deprecated)]
         handle_errors(self, f)
     }
 }

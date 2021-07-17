@@ -1,3 +1,4 @@
+#![allow(deprecated)]
 use eventuals::*;
 use tokio::test;
 
