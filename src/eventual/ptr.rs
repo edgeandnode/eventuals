@@ -16,7 +16,7 @@ use std::{
 /// subscribers may be triggered unnecessarily in some contexts. If this is
 /// undesirable use Arc instead.
 ///
-/// This type is not specificaly Eventual related, but is a useful pattern.
+/// This type is not specifically Eventual related, but is a useful pattern.
 #[repr(transparent)]
 #[derive(Debug, Default)]
 pub struct Ptr<T> {
@@ -112,7 +112,7 @@ where
     // originated from the original error. Semantically that seems like a
     // different thing (Ptr<Error> is not a new error caused by a previous one!)
     // but at the same time that might make the backtrace accessible whereas
-    // here it cannot be because backtace is a nightly API.
+    // here it cannot be because backtrace is a nightly API.
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         self.inner.source()
     }

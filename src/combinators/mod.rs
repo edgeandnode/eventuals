@@ -45,11 +45,9 @@ macro_rules! impl_tuple {
         impl<T, $($T,)*> Selectable for ($($T,)*)
             where
             $($T: IntoReader<Output = T>,)*
-            // TODO: I don't understand why this bound is required.
-            // It is always the case that this bound is satisfied.
-            Vec<EventualReader<T>>: Selectable,
+            T: Value,
         {
-            type Output = <Vec<EventualReader<T>> as Selectable>::Output;
+            type Output = T;
             fn select(self) -> Eventual<Self::Output> {
                 let ($($t),*) = self;
                 $(let $t = $t.into_reader();)*
@@ -260,10 +258,10 @@ where
 //
 // Below is an "interesting" first attempt.
 //
-// This is a retry that is maximimally abstracted.
+// This is a retry that is maximally abstracted.
 // It is somewhat experimental, but makes sense if you
 // want to be able to not tie retry down to any particular
-// other feature (like map). It's also BONKERS. See map_with_rety
+// other feature (like map). It's also BONKERS. See map_with_retry
 // for usage.
 pub fn retry<Ok, Err, F, Fut>(mut f: F) -> Eventual<Ok>
 where

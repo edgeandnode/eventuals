@@ -88,7 +88,7 @@ async fn with_retry_gets_new_value() {
         |_| tokio::time::sleep(Duration::from_secs(1000000000000)),
     );
 
-    // Demonstrate that involiable does not produce a value. At this point retry
+    // Demonstrate that inviolable does not produce a value. At this point retry
     // should be waiting for either a new value or the new eventual but gets
     // neither.
     select! {

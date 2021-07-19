@@ -7,7 +7,7 @@ use crate::{error::Closed, IntoReader};
 // that would be bad because `.map` on Stream and `.map` on Eventual have very
 // different semantics. In general, Stream has very different semantics. It even
 // has a size_hint - a Stream is a progressively available Vec (distinct
-// values), but an Eventual is an eventualy consistent and updating "latest"
+// values), but an Eventual is an eventually consistent and updating "latest"
 // value which infers no sequence and may drop intermediate values.
 pub struct EventualReader<T> {
     change: ChangeReader<T>,
