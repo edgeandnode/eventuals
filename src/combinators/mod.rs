@@ -1,6 +1,7 @@
 use crate::*;
 use futures::future::select_all;
 use never::Never;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use std::{future::Future, time::Instant};
 use tokio::{
@@ -305,23 +306,40 @@ pub fn map_with_retry<I, Ok, Err, F, Fut, E, FutE>(
     on_err: E,
 ) -> Eventual<Ok>
 where
-    F: 'static + Clone + Send + Fn(I) -> Fut,
-    E: 'static + Clone + Send + Sync + Fn(Err) -> FutE,
+    F: 'static + Send + FnMut(I) -> Fut,
+    E: 'static + Send + Sync + FnMut(Err) -> FutE,
     I: Value,
     Ok: Value,
     Err: Value,
     Fut: Send + Future<Output = Result<Ok, Err>>,
     FutE: Send + Future<Output = ()>,
 {
+    // Wraping the FnMut values in Arc<Mutex<_>> allows us
+    // to use FnMut instead of Fn, and not require Fn to impl
+    // clone. This should make it easier to do things like
+    // exponential backoff.
+    let f = Arc::new(Mutex::new(f));
+    let on_err = Arc::new(Mutex::new(on_err));
+
     retry(move |e| {
         let reader = source.subscribe();
         let f = f.clone();
         let on_err = on_err.clone();
         async move {
             if let Some(e) = e {
-                on_err(e).await;
+                let fut = {
+                    let mut locked = on_err.lock().unwrap();
+                    locked(e)
+                };
+                fut.await;
             }
-            map(reader, f)
+            map(reader, move |value| {
+                let fut = {
+                    let mut locked = f.lock().unwrap();
+                    locked(value)
+                };
+                fut
+            })
         }
     })
 }
