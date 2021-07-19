@@ -1,6 +1,5 @@
-use super::*;
+use super::{change::ChangeReader, *};
 use crate::{error::Closed, IntoReader};
-use std::collections::HashSet;
 
 // It's tempting here to provide some API that treats the Eventual like a
 // Stream. That would be bad though, because it would expose all the APIs that
@@ -8,12 +7,11 @@ use std::collections::HashSet;
 // that would be bad because `.map` on Stream and `.map` on Eventual have very
 // different semantics. In general, Stream has very different semantics. It even
 // has a size_hint - a Stream is a progressively available Vec (distinct
-// values), but an Eventual is an eventualy consistent and updating "latest"
+// values), but an Eventual is an eventually consistent and updating "latest"
 // value which infers no sequence and may drop intermediate values.
 pub struct EventualReader<T> {
-    change: Change<T>,
+    change: ChangeReader<T>,
     prev: Option<Result<T, Closed>>,
-    unsubscribe_from: Arc<SharedState<T>>,
 }
 
 impl<T> IntoReader for EventualReader<T>
@@ -43,6 +41,7 @@ where
         let mut swap = None;
         self.eventual
             .change
+            .change
             .swap_or_wake(&mut swap, &self.eventual.prev, cx);
         match swap {
             None => Poll::Pending,
@@ -50,17 +49,6 @@ where
                 self.eventual.prev = Some(value.clone());
                 Poll::Ready(value)
             }
-        }
-    }
-}
-
-// Remove from subscription on Drop
-impl<T> Drop for EventualReader<T> {
-    fn drop(&mut self) {
-        let mut lock = self.unsubscribe_from.subscribers.lock().unwrap();
-        let mut updated: HashSet<_> = lock.deref().deref().clone();
-        if updated.remove(&self.change) {
-            *lock = Arc::new(updated);
         }
     }
 }
@@ -74,20 +62,8 @@ where
     }
 
     pub(crate) fn new(state: Arc<SharedState<T>>) -> Self {
-        let change: Change<T> = Change::new();
-        {
-            let mut lock = state.subscribers.lock().unwrap();
-            let mut updated: HashSet<_> = lock.deref().deref().clone();
-            updated.insert(change.clone());
-            *lock = Arc::new(updated);
-        }
-        // Must notify AFTER it's in the subscriber list to avoid missing updates.
-        state.notify_one(&change);
+        let change = state.subscribe();
 
-        EventualReader {
-            change,
-            prev: None,
-            unsubscribe_from: state,
-        }
+        EventualReader { change, prev: None }
     }
 }

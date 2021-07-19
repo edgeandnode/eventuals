@@ -1,9 +1,22 @@
 [package]
 name = "eventuals"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Zac Burns <That3Percent@gmail.com>"]
 edition = "2018"
 license = "MIT"
+description = "Eventually consistent values"
+repository = "https://github.com/edgeandnode/eventuals"
+keywords = ["async", "future", "data-pipeline"]
+categories = ["asynchronous", "concurrency"]
+readme = "README.md"
+
+[features]
+default = []
+# Adds some debugging capabilities.
+trace = []
+
+[badges]
+maintenance = { status = "experimental" }
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -11,6 +24,9 @@ license = "MIT"
 by_address = "1.0"
 tokio = { version="1.8" }
 futures = "0.3.15"
+never = "0.1.0"
 
 [dev-dependencies]
 tokio = { version="1.8", features=["full"] }
+eventuals = { path=".", features=["trace"] }
+lazy_static = "1.0"

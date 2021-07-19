@@ -1,5 +1,6 @@
 use eventuals::*;
-use tokio::{join, test};
+use std::{sync::Arc, time::Duration};
+use tokio::{join, test, time::sleep};
 
 #[test]
 async fn dropped_writer_closes() {
@@ -36,17 +37,25 @@ async fn only_most_recent_value_is_observed() {
 
 #[test]
 async fn drop_doesnt_interfere() {
-    // TODO: A dbg! was used to verify that the subscriber count goes to 0 and
-    // there is no leak. A unit test may be required to make that test permanent.
-    let (mut writer, eventual) = Eventual::new();
+    let (mut writer, eventual) = Eventual::<u32>::new();
+    assert_eq!(eventual.subscriber_count(), 0);
     let mut read_0 = eventual.subscribe();
+    assert_eq!(eventual.subscriber_count(), 1);
     let mut read_1 = eventual.subscribe();
+    assert_eq!(eventual.subscriber_count(), 2);
     writer.write(5);
     writer.write(10);
     assert_eq!(read_0.next().await, Ok(10));
     drop(read_0);
+    assert_eq!(eventual.subscriber_count(), 1);
     writer.write(1);
+    // The main point of the test is this line - after
+    // dropping one subscriber we still have our subscriber.
     assert_eq!(read_1.next().await, Ok(1));
+    drop(read_1);
+    // It is also useful to verify that the above test passed
+    // even though drop is in fact working.
+    assert_eq!(eventual.subscriber_count(), 0);
 }
 
 #[test]
@@ -82,16 +91,31 @@ async fn can_message_pass() {
     assert_eq!(b.unwrap(), 6);
 }
 
-/*
+// Ensures that eventuals will drop all the way down the chain "immediately"
 #[test]
 async fn chained_eventuals_drop() {
-    // TODO: Get a source eventual, map it, and consume the result, then drop
-    // and verify the write fails. This probably doesn't work because the map
-    // eventual wouldn't notice it was dead because it doesn't write?. It might
-    // work, it just would be delayed and drop one "layer" at a time. We could
-    // get it to work by notifying the eventual (complicating the API, requiring
-    // a join!) or maybe with something fancy using weakrefs for eg: map so that
-    // intermediates transiently hold values (seems complicated either way).
-    todo!();
+    let (mut writer, source) = Eventual::new();
+    let source = Arc::new(source);
+    let mut new_source = source.clone();
+    let mut i = 0;
+    let mapped = loop {
+        new_source = Arc::new(new_source.subscribe().map(|v: u32| async move { v + 1 }));
+        i += 1;
+        if i == 25 {
+            break new_source;
+        }
+    };
+
+    assert_eq!(source.subscriber_count(), 1);
+    assert_eq!(mapped.subscriber_count(), 0);
+
+    writer.write(5);
+    assert_eq!(mapped.value().await, Ok(30));
+
+    assert_eq!(source.subscriber_count(), 1);
+    drop(mapped);
+    // Dropping doesn't happen on the same thread, but
+    // it still should happen before we write a value.
+    sleep(Duration::from_millis(1)).await;
+    assert_eq!(source.subscriber_count(), 0);
 }
-*/

@@ -1,8 +1,9 @@
-use crate::IntoReader;
-
+use super::change::ChangeReader;
 use super::shared_state::SharedState;
 use super::*;
+use crate::IntoReader;
 use futures::channel::oneshot;
+use futures::never::Never;
 use tokio::select;
 
 pub struct Eventual<T> {
@@ -22,7 +23,7 @@ where
     pub fn spawn<F, Fut>(f: F) -> Self
     where
         F: 'static + Send + FnOnce(EventualWriter<T>) -> Fut,
-        Fut: Future<Output = ()> + Send,
+        Fut: Future<Output = Result<Never, Closed>> + Send,
     {
         let (writer, eventual) = Eventual::new();
         tokio::spawn(async move {
@@ -33,14 +34,48 @@ where
         });
         eventual
     }
+
+    pub fn subscribe(&self) -> EventualReader<T> {
+        EventualReader::new(self.state.clone())
+    }
+
+    pub fn value(&self) -> ValueFuture<T> {
+        let change = self.state.clone().subscribe();
+        ValueFuture {
+            change: Some(change),
+        }
+    }
+
+    #[cfg(feature = "trace")]
+    pub fn subscriber_count(&self) -> usize {
+        self.state.subscribers.lock().unwrap().len()
+    }
 }
 
-impl<T> Eventual<T>
+pub struct ValueFuture<T> {
+    change: Option<ChangeReader<T>>,
+}
+
+impl<T> Future for ValueFuture<T>
 where
     T: Value,
 {
-    pub fn subscribe(&self) -> EventualReader<T> {
-        EventualReader::new(self.state.clone())
+    type Output = Result<T, Closed>;
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let mut swap = None;
+        let prev = None;
+        self.change
+            .as_mut()
+            .unwrap()
+            .change
+            .swap_or_wake(&mut swap, &prev, cx);
+        match swap {
+            None => Poll::Pending,
+            Some(value) => {
+                self.change = None;
+                Poll::Ready(value)
+            }
+        }
     }
 }
 

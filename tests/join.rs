@@ -3,12 +3,12 @@ use tokio::test;
 
 #[test]
 async fn joins_values() {
-    let (mut a_writer, a) = Eventual::new();
-    let (mut b_writer, b) = Eventual::new();
+    let (mut a_writer, a) = Eventual::<&'static str>::new();
+    let (mut b_writer, b) = Eventual::<u32>::new();
 
     a_writer.write("a");
     b_writer.write(1);
-    let mut ab = join(a, b).subscribe();
+    let mut ab = join((a, b)).subscribe();
 
     assert_eq!(Ok(("a", 1)), ab.next().await);
 
