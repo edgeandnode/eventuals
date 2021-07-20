@@ -1,9 +1,13 @@
 use futures::{channel::oneshot::Receiver, future::Shared};
 
-use super::*;
+use super::{change::ChangeVal, *};
 use crate::error::Closed;
 use futures::FutureExt;
-use std::sync::{Arc, Weak};
+use std::{
+    mem,
+    ops::DerefMut,
+    sync::{Arc, Weak},
+};
 
 pub struct EventualWriter<T>
 where
@@ -37,8 +41,6 @@ where
         self.closed.clone()
     }
 
-    // This doesn't strictly need to take &mut self. Consider.
-    // (Though if we want to use ArcSwap it certainly makes it easier)
     pub fn write(&mut self, value: T) {
         self.write_private(Ok(value))
     }
@@ -48,7 +50,20 @@ where
             // See also b045e23a-f445-456f-a686-7e80de621cf2
             {
                 let mut prev = state.last_write.lock().unwrap();
-                *prev = Some(value);
+
+                if let Ok(value) = value {
+                    *prev = ChangeVal::Value(value);
+                } else {
+                    match mem::replace(prev.deref_mut(), ChangeVal::None) {
+                        ChangeVal::None => {
+                            *prev = ChangeVal::Finalized(None);
+                        }
+                        ChangeVal::Value(value) => {
+                            *prev = ChangeVal::Finalized(Some(value));
+                        }
+                        _ => unreachable!(),
+                    }
+                }
             }
             state.notify_all();
         }

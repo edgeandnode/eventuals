@@ -38,12 +38,8 @@ where
     // the future that would produce values. But... that may be very complex. A
     // refactor may be necessary.
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let mut swap = None;
-        self.eventual
-            .change
-            .change
-            .swap_or_wake(&mut swap, &self.eventual.prev, cx);
-        match swap {
+        let update = self.eventual.change.change.poll(&self.eventual.prev, cx);
+        match update {
             None => Poll::Pending,
             Some(value) => {
                 self.eventual.prev = Some(value.clone());

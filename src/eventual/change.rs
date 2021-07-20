@@ -5,12 +5,15 @@ use std::{
     collections::HashSet,
     hash::{Hash, Hasher},
     mem,
+    ops::DerefMut,
     sync::{Arc, Mutex},
     task::Waker,
 };
 
 pub enum ChangeVal<T> {
-    Value(Option<Result<T, Closed>>),
+    None,
+    Value(T),
+    Finalized(Option<T>),
     Waker(Waker),
 }
 
@@ -39,28 +42,51 @@ where
 {
     pub fn new() -> Self {
         Self {
-            inner: Ptr::new(Mutex::new(ChangeVal::Value(None))),
+            inner: Ptr::new(Mutex::new(ChangeVal::None)),
         }
     }
 
-    pub fn swap_or_wake(
+    pub fn poll(
         &self,
-        swap: &mut Option<Result<T, Closed>>,
         cmp: &Option<Result<T, Closed>>,
         cx: &mut Context,
-    ) {
+    ) -> Option<Result<T, Closed>> {
         let mut lock = self.inner.lock().unwrap();
-        if let ChangeVal::Value(value) = &mut *lock {
-            if value != cmp {
-                mem::swap(value, swap);
+
+        // Move the value out pre-emptively to keep things sane for the borrow checker.
+        // Depending on the branch ahead we'll swap in different values.
+        let value = mem::replace(lock.deref_mut(), ChangeVal::None);
+
+        match value {
+            // If there is a new value and it is different than our prevously
+            // observed value return it. Otherwise fall back to waking later.
+            ChangeVal::Value(value) => {
+                let value = Some(Ok(value));
+                if cmp != &value {
+                    return value;
+                }
             }
+            // If the eventual is finalized from the writer end make sure that the final value
+            // (if any) is returned once as though it were a normal value. Then (possibly on
+            // a subsequent poll) return the Err.
+            ChangeVal::Finalized(value) => {
+                if let Some(value) = value {
+                    let value = Some(Ok(value));
+                    if cmp != &value {
+                        *lock = ChangeVal::Finalized(None);
+                        return value;
+                    }
+                }
+                return Some(Err(Closed));
+            }
+            // There is no update. The waker may need to be re-scheduled.
+            ChangeVal::None | ChangeVal::Waker(_) => {}
         }
-        if swap.is_none() {
-            *lock = ChangeVal::Waker(cx.waker().clone())
-        }
+        *lock = ChangeVal::Waker(cx.waker().clone());
+        None
     }
 
-    pub fn set_value(&self, value: &Mutex<Option<Result<T, Closed>>>) {
+    pub fn set_value(&self, value: &Mutex<ChangeVal<T>>) {
         let prev = {
             // To avoid race conditions BOTH locks MUST be held. This insures
             // that if new values are pushed while subscribers are being
@@ -71,9 +97,50 @@ where
             // equality check on the receiving end.
             let value = value.lock().unwrap();
             let mut inner = self.inner.lock().unwrap();
-            let mut update = ChangeVal::Value(value.as_ref().map(|v| v.clone()));
-            mem::swap(&mut *inner, &mut update);
-            update
+
+            // Move out of inner early for borrow checker.
+            let prev = mem::replace(inner.deref_mut(), ChangeVal::None);
+
+            match value.deref() {
+                ChangeVal::None => {
+                    // Prev must be None. The only time set_value is called when
+                    // value is None is when the value has never before been set
+                    // (therefore prev is not ChangeValue::Finalized or
+                    // ChangeVal::Value) and the ChangeVal has no waker because
+                    // we are now adding it to the subscriber list.
+                    // If this assert fails, we would want `*inner = prev;`.
+                    debug_assert!(matches!(prev, ChangeVal::None));
+
+                    // Since we know this is None, there is no need to check
+                    // for the waker (below)
+                    return;
+                }
+                // There is an update.
+                ChangeVal::Value(value) => {
+                    // The previous value must not have been finalized.
+                    // It is not possible to move from a finalized state to
+                    // then have updates.
+                    debug_assert!(!matches!(prev, ChangeVal::Finalized(_)));
+                    // Set the value.
+                    *inner = ChangeVal::Value(value.clone());
+                }
+                // If closing, this is more tricky because we want to preserve
+                // the last update (if any) so that the final value propagates
+                // all the way through.
+                ChangeVal::Finalized(finalized) => {
+                    // Verify that it's not copying the final value over again
+                    // because in racey situations it may have been copied once
+                    // then had the value consumed. It would't be the end of the
+                    // world to reset the finalized state, but would result in
+                    // some unnecessary work.
+                    if !matches!(prev, ChangeVal::Finalized(_)) {
+                        *inner = ChangeVal::Finalized(finalized.clone());
+                    }
+                }
+                ChangeVal::Waker(_) => unreachable!(),
+            };
+
+            prev
 
             // Drop locks before calling wake()
         };

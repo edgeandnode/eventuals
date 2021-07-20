@@ -1,4 +1,3 @@
-use crate::error::Closed;
 use futures::channel::oneshot::Sender;
 use std::{
     collections::HashSet,
@@ -7,7 +6,7 @@ use std::{
 };
 
 use super::{
-    change::{Change, ChangeReader},
+    change::{Change, ChangeReader, ChangeVal},
     *,
 };
 
@@ -19,7 +18,7 @@ pub struct SharedState<T> {
     // These taken together advocate for a snapshot-at-time style of concurrency
     // which makes snapshotting very cheap but updates expensive.
     pub subscribers: Mutex<Arc<HashSet<Change<T>>>>,
-    pub last_write: Mutex<Option<Result<T, Closed>>>,
+    pub last_write: Mutex<ChangeVal<T>>,
     writer_notify: Option<Sender<()>>,
 }
 
@@ -41,7 +40,7 @@ where
     pub fn new(writer_notify: Sender<()>) -> Self {
         Self {
             subscribers: Mutex::new(Arc::new(HashSet::new())),
-            last_write: Mutex::new(None),
+            last_write: Mutex::new(ChangeVal::None),
             writer_notify: Some(writer_notify),
         }
     }
