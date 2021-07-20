@@ -2,6 +2,7 @@ use crate::*;
 use futures::Future;
 use std::time::Duration;
 
+/// Fluent style API extensions for any Eventual reader.
 pub trait EventualExt: Sized + IntoReader {
     #[inline]
     fn map<F, O, Fut>(self, f: F) -> Eventual<O>

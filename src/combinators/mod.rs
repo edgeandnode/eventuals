@@ -1,6 +1,7 @@
 use crate::*;
 use futures::future::select_all;
 use never::Never;
+use std::mem;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use std::{future::Future, time::Instant};
@@ -9,6 +10,9 @@ use tokio::{
     time::{sleep, sleep_until},
 };
 
+/// Applies an operation to each observed snapshot from the source. For example:
+/// map([1, 2, 3, 4, 5], |v| v+1) may produce something like [2, 6] or [3, 4,
+/// 6]. In this case, 6 is the only value guaranteed to be observed eventually.
 pub fn map<E, I, O, F, Fut>(source: E, mut f: F) -> Eventual<O>
 where
     E: IntoReader<Output = I>,
@@ -26,6 +30,9 @@ where
     })
 }
 
+/// Periodically writes a new value of the time elapsed. No guarantee is made
+/// about frequency or the value written except that at least "interval" time
+/// has passed since producing the last snapshot.
 pub fn timer(interval: Duration) -> Eventual<Instant> {
     Eventual::spawn(move |mut writer| async move {
         loop {
@@ -35,6 +42,8 @@ pub fn timer(interval: Duration) -> Eventual<Instant> {
     })
 }
 
+/// Indicates the type can be used with the join method. Not intended to
+/// be used directly.
 pub trait Joinable {
     type Output;
     fn join(self) -> Eventual<Self::Output>;
@@ -104,6 +113,8 @@ macro_rules! impl_tuple {
     };
 }
 
+// This macro exists to expand to the implementation for one tuple and
+// call itself for the smaller tuple until running out of tuples.
 macro_rules! impl_tuples {
     ($len:expr, $A:ident, $a:ident) => { };
     ($len:expr, $A:ident, $a:ident, $($T:ident, $t:ident),+) => {
@@ -114,6 +125,11 @@ macro_rules! impl_tuples {
 
 impl_tuples!(12, A, a, B, b, C, c, D, d, E, e, F, f, G, g, H, h, I, i, J, j, K, k, L, l);
 
+/// An eventual that will only progress once all inputs are available, and then
+/// also progress with each change as they become available. For example,
+/// join((["a", "b, "c"], [1, 2, 3])) may observe something like [("a", 1),
+/// ("a", 2), ("c", 2), ("c", 3)] or [("c", 1), ("c", 3)]. The only snapshot
+/// that is guaranteed to be observed is ("c", 3).
 pub fn join<J>(joinable: J) -> Eventual<J::Output>
 where
     J: Joinable,
@@ -171,6 +187,8 @@ where
     }
 }
 
+/// Prevents observation of values more frequently than the provided duration.
+/// The final value is guaranteed to be observed.
 pub fn throttle<E>(read: E, duration: Duration) -> Eventual<E::Output>
 where
     E: IntoReader,
@@ -200,7 +218,9 @@ where
     })
 }
 
-/// Produce a side effect with the latest values of an eventual
+/// Produce a side effect with the latest snapshots as they become available.
+/// The caller must not drop the returned PipeHandle until it is no longer
+/// desirable to produce the side effect.
 pub fn pipe<E, F>(reader: E, mut f: F) -> PipeHandle
 where
     E: IntoReader,
@@ -226,6 +246,17 @@ impl PipeHandle {
     fn new(eventual: Eventual<Never>) -> Self {
         Self { _inner: eventual }
     }
+
+    /// Prevent the pipe operation from ever stopping for as long
+    /// as snapshots are observed.
+    #[inline]
+    pub fn forever(self) {
+        // TODO: This is a memory leak, though not a problem for the anticipated use-cases.
+        // The problem is that if the writer ever stops it should be possible to cleanup the Arc
+        // but this would forget to. The reason this is not anticipated to be a problem is that
+        // most cases have writers that are forever and the intent is to leak the reader.
+        mem::forget(self)
+    }
 }
 
 #[deprecated = "Not deterministic. This is a special case of filter. Retry should be better"]
@@ -248,20 +279,21 @@ where
     })
 }
 
-// TODO: Retry. This is needed to be supported because retry should be eventual
-// aware in that it will only retry if there is no update available, instead
-// preferring the update. It's a little tricky to write in a general sense because
-// it is not clear _what_ is being retried. A retry can't force an upstream map
-// to produce a value again. You could couple the map and retry API, but that's
-// not great. The only thing I can think of is to have a function produce an eventual
-// upon encountering an error. That seems like the right choice but need to let it simmer.
+// TODO: Improve retry API. Some retry is needed because retry should be
+// eventual aware in that it will only retry if there is no update available,
+// instead preferring the update. It's a little tricky to write in a general
+// sense because it is not clear _what_ is being retried. A retry can't force an
+// upstream map to produce a value again. You could couple the map and retry
+// API, but that's not great. The only thing I can think of is to have a
+// function produce an eventual upon encountering an error. That seems like the
+// right choice but need to let it simmer. With this API the retry "region" is
+// configurable where the "region" could be an entire pipeline of eventuals.
 //
 // Below is an "interesting" first attempt.
 //
-// This is a retry that is maximally abstracted.
-// It is somewhat experimental, but makes sense if you
-// want to be able to not tie retry down to any particular
-// other feature (like map). It's also BONKERS. See map_with_retry
+// This is a retry that is maximally abstracted. It is somewhat experimental,
+// but makes sense if you want to be able to not tie retry down to any
+// particular other feature (like map). It's also BONKERS. See map_with_retry
 // for usage.
 pub fn retry<Ok, Err, F, Fut>(mut f: F) -> Eventual<Ok>
 where
@@ -298,6 +330,15 @@ where
     })
 }
 
+/// Ensure that a fallible map operation will succeed eventually. For example
+/// given map_with_retry(["url_1", "url_2"], fallibly_get_data, sleep) may
+/// produce ["data_1", "data_2"] or just ["data_2"]. The difference between
+/// map_with_retry and something like map(source, retry(fallibly_get_data,
+/// on_err)) is that the former supports 'moving on' to "url_2" even if "url_1"
+/// is in a retry state, whereas the latter would have to complete one item
+/// fully before progressing. It is because of this distinction that
+/// map_with_retry is allowed to retry forever instead of giving up after a set
+/// number of attempts.
 pub fn map_with_retry<I, Ok, Err, F, Fut, E, FutE>(
     source: Eventual<I>,
     f: F,
