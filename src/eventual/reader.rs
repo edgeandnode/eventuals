@@ -34,7 +34,7 @@ where
 {
     type Output = Result<T, Closed>;
     // TODO: This is currently checking for a pushed value, but that will require
-    // eg: map() to run in separate tasks. It might be desireble to have this poll
+    // eg: map() to run in separate tasks. It might be desirable to have this poll
     // the future that would produce values. But... that may be very complex. A
     // refactor may be necessary.
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {

@@ -58,7 +58,7 @@ where
         let value = mem::replace(lock.deref_mut(), ChangeVal::None);
 
         match value {
-            // If there is a new value and it is different than our prevously
+            // If there is a new value and it is different than our previously
             // observed value return it. Otherwise fall back to waking later.
             ChangeVal::Value(value) => {
                 let value = Some(Ok(value));
@@ -130,7 +130,7 @@ where
                 ChangeVal::Finalized(finalized) => {
                     // Verify that it's not copying the final value over again
                     // because in racey situations it may have been copied once
-                    // then had the value consumed. It would't be the end of the
+                    // then had the value consumed. It wouldn't be the end of the
                     // world to reset the finalized state, but would result in
                     // some unnecessary work.
                     if !matches!(prev, ChangeVal::Finalized(_)) {
