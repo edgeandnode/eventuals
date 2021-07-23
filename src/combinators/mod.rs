@@ -372,12 +372,12 @@ where
                 // Without this line there is a very subtle problem.
                 // One thing that map_with_retry needs to do is resume as
                 // of the state of the source. We accomplish this with clone.
-                // But, if the source had prev=A and then subsequently [B, A]
-                // is observed and the A needs to retry without this line
-                // the output of B could have been produced and the output
-                // of map(A) would not be produced. Interestingly we also know that
-                // this line does not force a double-read, because in order to
-                // get here the reader must have had at least once observation.
+                // But, consider the following scenario: if the source had prev=A,
+                // then [B, A] is observed, and A needs to retry. Without this line
+                // the output of B could have been produced and the output of
+                // map(A) would not have been produced. Interestingly, we also
+                // know that this line does not force a double-read, because in order
+                // to get here the reader must have had at least one observation.
                 // Unless you count (Ok(A), Fail(B), Ok(A)) as a double read.
                 //
                 // There's one more subtle issue to consider, which is why force_dirty
