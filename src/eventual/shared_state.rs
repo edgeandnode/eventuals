@@ -17,6 +17,12 @@ pub struct SharedState<T> {
     //    Modifying the subscriber list is less frequent than posting events
     // These taken together advocate for a snapshot-at-time style of concurrency
     // which makes snapshotting very cheap but updates expensive.
+    //
+    // There is maybe a case for some kind of persistent immutable data structure
+    // here (finally, for once in my career...). `im` on crates.io is a candidate.
+    // (Lookout though, `im` uses MPL license which is incompatible with MIT)
+    // It would probably require a lot of subscribers before paying off - which
+    // itself requires heavy linear costs. So, I am skeptical still.
     pub subscribers: Mutex<Arc<HashSet<Change<T>>>>,
     pub last_write: Mutex<ChangeVal<T>>,
     writer_notify: Option<Sender<()>>,

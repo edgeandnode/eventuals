@@ -1,5 +1,6 @@
 use eventuals::*;
-use std::{sync::Arc, time::Duration};
+use futures::poll;
+use std::{sync::Arc, task::Poll, time::Duration};
 use tokio::{join, test, time::sleep};
 
 #[test]
@@ -118,4 +119,21 @@ async fn chained_eventuals_drop() {
     // it still should happen before we write a value.
     sleep(Duration::from_millis(1)).await;
     assert_eq!(source.subscriber_count(), 0);
+}
+
+#[test]
+async fn clone_reader() {
+    let (mut writer, eventual) = Eventual::new();
+    writer.write(99);
+    let mut read_0 = eventual.subscribe();
+    let mut read_1 = read_0.clone();
+    assert_eq!(read_1.next().await, Ok(99));
+
+    let poll = poll!(read_1.clone().next());
+    assert_eq!(Poll::Pending, poll);
+
+    drop(writer);
+    assert_eq!(read_0.clone().next().await, Ok(99));
+    assert_eq!(read_0.next().await, Ok(99));
+    assert_eq!(read_0.clone().next().await, Err(Closed));
 }

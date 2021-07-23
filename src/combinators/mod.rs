@@ -339,20 +339,18 @@ where
 /// fully before progressing. It is because of this distinction that
 /// map_with_retry is allowed to retry forever instead of giving up after a set
 /// number of attempts.
-pub fn map_with_retry<I, Ok, Err, F, Fut, E, FutE>(
-    source: Eventual<I>,
-    f: F,
-    on_err: E,
-) -> Eventual<Ok>
+pub fn map_with_retry<Ok, Err, F, Fut, E, FutE, R>(source: R, f: F, on_err: E) -> Eventual<Ok>
 where
-    F: 'static + Send + FnMut(I) -> Fut,
+    R: IntoReader,
+    F: 'static + Send + FnMut(R::Output) -> Fut,
     E: 'static + Send + Sync + FnMut(Err) -> FutE,
-    I: Value,
     Ok: Value,
     Err: Value,
     Fut: Send + Future<Output = Result<Ok, Err>>,
     FutE: Send + Future<Output = ()>,
 {
+    let source = source.into_reader();
+
     // Wraping the FnMut values in Arc<Mutex<_>> allows us
     // to use FnMut instead of Fn, and not require Fn to impl
     // clone. This should make it easier to do things like
@@ -361,7 +359,7 @@ where
     let on_err = Arc::new(Mutex::new(on_err));
 
     retry(move |e| {
-        let reader = source.subscribe();
+        let mut reader = source.clone();
         let f = f.clone();
         let on_err = on_err.clone();
         async move {
@@ -371,6 +369,26 @@ where
                     locked(e)
                 };
                 fut.await;
+                // Without this line there is a very subtle problem.
+                // One thing that map_with_retry needs to do is resume as
+                // of the state of the source. We accomplish this with clone.
+                // But, consider the following scenario: if the source had prev=A,
+                // then [B, A] is observed, and A needs to retry. Without this line
+                // the output of B could have been produced and the output of
+                // map(A) would not have been produced. Interestingly, we also
+                // know that this line does not force a double-read, because in order
+                // to get here the reader must have had at least one observation.
+                // Unless you count (Ok(A), Fail(B), Ok(A)) as a double read.
+                //
+                // There's one more subtle issue to consider, which is why force_dirty
+                // is not public. force_dirty could cause the final value to be
+                // double-read if the eventual is closed. However, we know that in this
+                // case it was not ready to receive closed.
+                //
+                // This does raise a philisophical question about guaranteeing that
+                // the last value is observed though. It could be that retry gets
+                // stuck here on the last value forever. (Unless the readers are dropped)
+                reader.force_dirty();
             }
             map(reader, move |value| {
                 let fut = {
