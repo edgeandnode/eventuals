@@ -63,3 +63,25 @@ where
         EventualReader { change, prev: None }
     }
 }
+
+// The cloned reader resumes from the same state as the source.
+impl<T> Clone for EventualReader<T>
+where
+    T: Value,
+{
+    fn clone(&self) -> Self {
+        Self {
+            prev: self.prev.clone(),
+            // This ends up being pre-notified with the latest value, but that's
+            // ok because it still gets de-duped when checking against
+            // self.prev. This is nice, because otherwise all the locking is
+            // really hard (impossible?) to get right.
+            //
+            // The thing to make sure we get right is that the reader is effectively
+            // in the same state as the reader it's being cloned from. Assuming
+            // no future writes, calling .next().poll() for both should produce
+            // the same result.
+            change: self.change.unsubscribe_from.clone().subscribe(),
+        }
+    }
+}
