@@ -45,8 +45,7 @@ async fn with_retry_works_eventually() {
     TRIES.store(0, SeqCst);
 
     let start = Instant::now();
-    let inviolable = map_with_retry(
-        nums,
+    let inviolable = nums.subscribe().map_with_retry(
         // Attempt 5 times on the same value before succeeding.
         move |n| async move {
             assert_eq!(n, 1);
@@ -74,8 +73,7 @@ async fn with_retry_gets_new_value() {
     let (mut writer, nums) = Eventual::<u32>::new();
     writer.write(1);
 
-    let inviolable = map_with_retry(
-        nums,
+    let inviolable = nums.map_with_retry(
         move |n| async move {
             match n {
                 1 => Err(()),

@@ -62,6 +62,12 @@ where
 
         EventualReader { change, prev: None }
     }
+
+    /// This function is pretty tricky. Be sure you know what you are doing.
+    pub(crate) fn force_dirty(&mut self) {
+        self.prev = None;
+        self.change.unsubscribe_from.notify_one(&self.change.change);
+    }
 }
 
 // The cloned reader resumes from the same state as the source.

@@ -26,6 +26,19 @@ pub trait EventualExt: Sized + IntoReader {
     {
         pipe(self, f)
     }
+
+    #[inline]
+    fn map_with_retry<F, E, Ok, Err, Fut, FutE>(self, f: F, on_err: E) -> Eventual<Ok>
+    where
+        F: 'static + Send + FnMut(Self::Output) -> Fut,
+        E: 'static + Send + Sync + FnMut(Err) -> FutE,
+        Ok: Value,
+        Err: Value,
+        Fut: Send + Future<Output = Result<Ok, Err>>,
+        FutE: Send + Future<Output = ()>,
+    {
+        map_with_retry(self, f, on_err)
+    }
 }
 
 impl<E> EventualExt for E where E: IntoReader {}

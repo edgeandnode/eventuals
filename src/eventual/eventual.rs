@@ -8,10 +8,6 @@ use futures::channel::oneshot;
 use futures::never::Never;
 use tokio::select;
 
-// TODO: Now that EventualReader can be cloned consider if it should
-// be merged into Eventual. This _could_ be confusing because the cloned
-// reader "resumes from" the same state as the reader it was cloned from,
-// but with Eventual there is no resume state.
 /// The entry point for getting the latest snapshots of values
 /// written by an EventualWriter. It supports multiple styles
 /// of observation.
