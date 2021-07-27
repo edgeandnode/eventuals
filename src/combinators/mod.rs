@@ -1,7 +1,6 @@
 use crate::*;
 use futures::future::select_all;
 use never::Never;
-use std::mem;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use std::{future::Future, time::Instant};
@@ -240,23 +239,24 @@ where
 /// Pipe ceases when this is dropped
 #[must_use]
 pub struct PipeHandle {
-    _inner: Eventual<Never>,
+    inner: Eventual<Never>,
 }
 
 impl PipeHandle {
     fn new(eventual: Eventual<Never>) -> Self {
-        Self { _inner: eventual }
+        Self { inner: eventual }
     }
 
     /// Prevent the pipe operation from ever stopping for as long
     /// as snapshots are observed.
     #[inline]
     pub fn forever(self) {
-        // TODO: This is a memory leak, though not a problem for the anticipated use-cases.
-        // The problem is that if the writer ever stops it should be possible to cleanup the Arc
-        // but this would forget to. The reason this is not anticipated to be a problem is that
-        // most cases have writers that are forever and the intent is to leak the reader.
-        mem::forget(self)
+        let Self { inner } = self;
+        tokio::task::spawn(async move {
+            // Drops the reader when the writer is closed
+            // This value is always Err(Closed) because inner is Eventual<Never>
+            let _closed = inner.value().await;
+        });
     }
 }
 
