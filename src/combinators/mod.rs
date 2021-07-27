@@ -238,6 +238,7 @@ where
 }
 
 /// Pipe ceases when this is dropped
+#[must_use]
 pub struct PipeHandle {
     _inner: Eventual<Never>,
 }
