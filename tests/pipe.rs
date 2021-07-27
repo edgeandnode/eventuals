@@ -2,6 +2,25 @@ use eventuals::*;
 use std::sync::Arc;
 use tokio::{sync::Notify, test};
 
+struct NotifyOnDrop {
+    notify: Arc<Notify>,
+}
+impl Drop for NotifyOnDrop {
+    fn drop(&mut self) {
+        self.notify.notify_one();
+    }
+}
+
+impl NotifyOnDrop {
+    fn new() -> (Arc<Notify>, Self) {
+        let notify = Arc::new(Notify::new());
+        let on_drop = Self {
+            notify: notify.clone(),
+        };
+        (notify, on_drop)
+    }
+}
+
 #[test]
 async fn produces_side_effect() {
     let (mut handle_writer, handle) = Eventual::new();
@@ -17,20 +36,9 @@ async fn produces_side_effect() {
 }
 
 #[test]
-async fn stops_after_drop() {
+async fn stops_after_drop_handle() {
     let (mut writer, eventual) = Eventual::new();
-    let notify = Arc::new(Notify::new());
-    struct NotifyOnDrop {
-        notify: Arc<Notify>,
-    }
-    impl Drop for NotifyOnDrop {
-        fn drop(&mut self) {
-            self.notify.notify_one();
-        }
-    }
-    let notify_on_drop = NotifyOnDrop {
-        notify: notify.clone(),
-    };
+    let (notify, notify_on_drop) = NotifyOnDrop::new();
 
     let pipe = eventual.pipe(move |v| {
         if v == 2 {
@@ -55,4 +63,28 @@ async fn stops_after_drop() {
     // I can't think of a good way to verify it didn't panic. But, surely
     // it doesn't.
     writer.write(2);
+}
+
+#[test]
+async fn forever_cleans_up_when_writer_closed() {
+    let (mut writer, eventual) = Eventual::new();
+    let (mut acker, ack) = Eventual::new();
+    let mut ack = ack.subscribe();
+    let (notify, notify_on_drop) = NotifyOnDrop::new();
+
+    eventual
+        .pipe(move |v| {
+            acker.write(v);
+            let _keep = &notify_on_drop;
+        })
+        .forever();
+
+    writer.write(1);
+    drop(writer);
+
+    // If this is notified it means that forever() cleans itself up when the writer stops.
+    notify.notified().await;
+    // This ensures that the last value was in fact passed through to pipe so that
+    // a stale value is not the last observed.
+    assert_eq!(ack.next().await, Ok(1));
 }
