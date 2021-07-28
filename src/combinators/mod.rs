@@ -227,13 +227,14 @@ where
 {
     let mut reader = reader.into_reader();
 
-    PipeHandle::new(Eventual::spawn(
-        move |_writer: EventualWriter<Never>| async move {
-            loop {
-                f(reader.next().await?);
-            }
-        },
-    ))
+    #[allow(unreachable_code)]
+    PipeHandle::new(Eventual::spawn(|_writer| async move {
+        loop {
+            f(reader.next().await?);
+        }
+        // Prevent the writer from being dropped. There has to be a better way...
+        drop(_writer);
+    }))
 }
 
 /// Pipe ceases when this is dropped

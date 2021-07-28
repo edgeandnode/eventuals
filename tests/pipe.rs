@@ -1,6 +1,6 @@
 use eventuals::*;
 use std::sync::Arc;
-use tokio::{sync::Notify, test};
+use tokio::{sync::Notify, test, time};
 
 struct NotifyOnDrop {
     notify: Arc<Notify>,
@@ -87,4 +87,29 @@ async fn forever_cleans_up_when_writer_closed() {
     // This ensures that the last value was in fact passed through to pipe so that
     // a stale value is not the last observed.
     assert_eq!(ack.next().await, Ok(1));
+}
+
+#[test]
+async fn forever_keeps_handle_alive() {
+    let (mut writer, reader) = Eventual::<u8>::new();
+    let (mut notifier, notify) = Eventual::<()>::new();
+    let mut notify = notify.subscribe();
+    reader
+        .pipe(move |v| {
+            if v > 1 {
+                notifier.write(());
+            }
+        })
+        .forever();
+
+    writer.write(1);
+    time::sleep(time::Duration::from_millis(100)).await;
+    writer.write(2);
+    time::sleep(time::Duration::from_millis(100)).await;
+    // Check that the pipe handle hasn't been dropped. If it were to drop, then
+    // the notifier would also be closed.
+    assert_eq!(notify.next().await, Ok(()));
+    drop(writer);
+    // Now the pipe handle and the notifier should be dropped.
+    assert_eq!(notify.next().await, Err(Closed));
 }
