@@ -232,7 +232,11 @@ where
         loop {
             f(reader.next().await?);
         }
-        // Prevent the writer from being dropped. There has to be a better way...
+        // Prevent the writer from being dropped. Normally we would expect
+        // _writer to not be dropped, but the async move creates a new lexical
+        // scope for the Future. If _writer is not moved into the Future it
+        // would be dropped right after the Future is created and before the
+        // closure returns. Without this line, Pipe stops prematurely.
         drop(_writer);
     }))
 }

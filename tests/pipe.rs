@@ -95,17 +95,13 @@ async fn forever_keeps_handle_alive() {
     let (mut notifier, notify) = Eventual::<()>::new();
     let mut notify = notify.subscribe();
     reader
-        .pipe(move |v| {
-            if v > 1 {
-                notifier.write(());
-            }
+        .pipe(move |_| {
+            notifier.write(());
         })
         .forever();
 
-    writer.write(1);
     time::sleep(time::Duration::from_millis(100)).await;
     writer.write(2);
-    time::sleep(time::Duration::from_millis(100)).await;
     // Check that the pipe handle hasn't been dropped. If it were to drop, then
     // the notifier would also be closed.
     assert_eq!(notify.next().await, Ok(()));
