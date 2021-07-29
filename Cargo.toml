@@ -1,6 +1,6 @@
 [package]
 name = "eventuals"
-version = "0.6.2"
+version = "0.6.3"
 authors = ["Zac Burns <That3Percent@gmail.com>"]
 edition = "2018"
 license = "MIT"
