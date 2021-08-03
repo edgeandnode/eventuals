@@ -406,3 +406,115 @@ where
         }
     })
 }
+
+/// Return an eventual with a starting value that then defers to source.
+pub fn init_with<R>(source: R, value: R::Output) -> Eventual<R::Output>
+where
+    R: IntoReader,
+{
+    let mut source = source.into_reader();
+    Eventual::spawn(|mut writer| async move {
+        writer.write(value);
+        loop {
+            writer.write(source.next().await?);
+        }
+    })
+}
+
+/// Prefer values from source_1 if available, otherwise use source_2.
+pub fn prefer<R1, R2, T>(source_1: R1, source_2: R2) -> Eventual<T>
+where
+    R1: IntoReader<Output = T>,
+    R2: IntoReader<Output = T>,
+    T: Value,
+{
+    let mut source_1 = source_1.into_reader();
+    let mut source_2 = source_2.into_reader();
+
+    Eventual::spawn(|mut writer| async move {
+        loop {
+            select! {
+                biased;
+
+                one = source_1.next() => {
+                    if let Ok(one) = one {
+                        writer.write(one);
+                        break;
+                    } else {
+                        loop {
+                            writer.write(source_2.next().await?);
+                        }
+                    }
+                }
+                two = source_2.next() => {
+                    if let Ok(two) = two {
+                        writer.write(two);
+                    } else {
+                        break;
+                    }
+                }
+            }
+        }
+        drop(source_2);
+        loop {
+            writer.write(source_1.next().await?);
+        }
+    })
+}
+
+// TODO: Consider if this is "sound" because it may work kind of like filter
+// because the final eventual may not have a write and in that case this could
+// settle on an non-deterministic value. The motivation for this function was in
+// imagining a DAG graph (like Apple Shake, or Autodesk Maya) powered by
+// eventuals where via a UI you could make and break connections by writing a
+// DAG node output eventual to a DAG node input eventual. A broken connection
+// would use something like `dag_input.write(Eventual::with_value(None))`, and
+// newly formed connections would use
+// `dag_input.write(dag_output.init_with(None))`. Inside the implementation of a
+// generic DAG node there would always be something like `output:
+// join((flatten(input_1), flatten(input_2)).map(add)`. For that specific
+// use-case this is not a problem. It may be that the non-deterministic APIs
+// generally should be resurrected with documentation caveats to bring their
+// non-determinism to the attention of the user. If the final eventual has a write,
+// this is always deterministic. Otherwise not.
+#[deprecated = "Unsure if this meets determinism requirements"]
+pub fn flatten<R1, R2>(outer: R1) -> Eventual<R2::Output>
+where
+    R1: IntoReader<Output = R2>,
+    R2: IntoReader,
+    R2: Value,
+{
+    let mut outer = outer.into_reader();
+    Eventual::spawn(|mut writer| async move {
+        // Always need to get the first outer eventual. If there
+        // is none, then there are no values and this can return because
+        // there is never anything else to write.
+        let mut inner = outer.next().await?.into_reader();
+        loop {
+            select! {
+                next = outer.next() => {
+                    // If we get a new source, replace the current one.
+                    if let Ok(next) = next {
+                        inner = next.into_reader();
+                    } else {
+                        // If we get here it means there will never be any more
+                        // sources. Exhaust the current one, then break.
+                        loop {
+                            writer.write(inner.next().await?);
+                        }
+                    }
+                }
+                next = inner.next() => {
+                    // If we get a new value, write it.
+                    if let Ok(next) = next {
+                        writer.write(next);
+                    } else {
+                        // If the current source runs out of values, always
+                        // try to move on to the next source.
+                        inner = outer.next().await?.into_reader();
+                    }
+                }
+            }
+        }
+    })
+}
