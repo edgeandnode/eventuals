@@ -39,6 +39,11 @@ pub trait EventualExt: Sized + IntoReader {
     {
         map_with_retry(self, f, on_err)
     }
+
+    #[inline]
+    fn init_with(self, value: Self::Output) -> Eventual<Self::Output> {
+        init_with(self, value)
+    }
 }
 
 impl<E> EventualExt for E where E: IntoReader {}

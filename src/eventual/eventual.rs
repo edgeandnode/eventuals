@@ -1,6 +1,6 @@
 use std::ops::DerefMut;
 
-use super::change::{ChangeReader, ChangeVal};
+use super::change::{ChangeReader, ChangeValNoWake};
 use super::shared_state::SharedState;
 use super::*;
 use crate::IntoReader;
@@ -79,12 +79,9 @@ where
     /// without waiting.
     pub fn value_immediate(&self) -> Option<T> {
         match self.state.last_write.lock().unwrap().deref_mut() {
-            ChangeVal::None => None,
-            ChangeVal::Value(t) => Some(t.clone()),
-            ChangeVal::Finalized(t) => t.clone(),
-            ChangeVal::Waker(_) => {
-                unreachable!();
-            }
+            ChangeValNoWake::None => None,
+            ChangeValNoWake::Value(t) => Some(t.clone()),
+            ChangeValNoWake::Finalized(t) => t.clone(),
         }
     }
 

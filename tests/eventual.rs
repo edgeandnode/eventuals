@@ -137,3 +137,14 @@ async fn clone_reader() {
     assert_eq!(read_0.next().await, Ok(99));
     assert_eq!(read_0.clone().next().await, Err(Closed));
 }
+
+#[test]
+async fn init_with_has_value() {
+    let (mut writer, values) = Eventual::new();
+    let mut values = values.init_with(5).subscribe();
+    assert_eq!(values.next().await, Ok(5));
+    writer.write(10);
+    assert_eq!(values.next().await, Ok(10));
+}
+
+// TODO: Test that closed is received twice in a row rather than getting stuck.

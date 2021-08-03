@@ -7,8 +7,8 @@ use std::{
     },
     time::{Duration, Instant},
 };
-use tokio::select;
 use tokio::test;
+use tokio::{select, time::sleep};
 
 #[test]
 async fn basic() {
@@ -57,7 +57,7 @@ async fn with_retry_works_eventually() {
             }
         },
         // Sleep 1ms between failures.
-        |_| tokio::time::sleep(Duration::from_millis(1)),
+        |_| sleep(Duration::from_millis(1)),
     );
 
     // Assert that this eventually works
@@ -83,7 +83,7 @@ async fn with_retry_gets_new_value() {
         // Sleep "forever". In practice this could be a short sleep
         // but we want to show that if a new value is available it
         // is used rather than reconstructing the pipeline.
-        |_| tokio::time::sleep(Duration::from_secs(1000000000000)),
+        |_| sleep(Duration::from_secs(1000000000000)),
     );
 
     // Demonstrate that inviolable does not produce a value. At this point retry
@@ -93,7 +93,7 @@ async fn with_retry_gets_new_value() {
         _ = inviolable.value() => {
             panic!("Nooooooooo!");
         }
-        _ = tokio::time::sleep(Duration::from_millis(10)) => {}
+        _ = sleep(Duration::from_millis(10)) => {}
     };
     // Show that when a new value is written we don't have to wait indefinitely
     // for the new eventual.

@@ -1,6 +1,6 @@
 use futures::{channel::oneshot::Receiver, future::Shared};
 
-use super::{change::ChangeVal, *};
+use super::{change::ChangeValNoWake, *};
 use crate::error::Closed;
 use futures::FutureExt;
 use std::{
@@ -52,16 +52,16 @@ where
                 let mut prev = state.last_write.lock().unwrap();
 
                 if let Ok(value) = value {
-                    *prev = ChangeVal::Value(value);
+                    *prev = ChangeValNoWake::Value(value);
                 } else {
-                    match mem::replace(prev.deref_mut(), ChangeVal::None) {
-                        ChangeVal::None => {
-                            *prev = ChangeVal::Finalized(None);
+                    match mem::replace(prev.deref_mut(), ChangeValNoWake::None) {
+                        ChangeValNoWake::None => {
+                            *prev = ChangeValNoWake::Finalized(None);
                         }
-                        ChangeVal::Value(value) => {
-                            *prev = ChangeVal::Finalized(Some(value));
+                        ChangeValNoWake::Value(value) => {
+                            *prev = ChangeValNoWake::Finalized(Some(value));
                         }
-                        _ => unreachable!(),
+                        ChangeValNoWake::Finalized(_) => unreachable!(),
                     }
                 }
             }
