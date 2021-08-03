@@ -24,3 +24,6 @@ pub use {
     reader::EventualReader,
     writer::EventualWriter,
 };
+
+#[cfg(feature = "trace")]
+pub use change::idle;

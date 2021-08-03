@@ -6,7 +6,7 @@ use std::{
 };
 
 use super::{
-    change::{Change, ChangeReader, ChangeVal},
+    change::{Change, ChangeReader, ChangeValNoWake},
     *,
 };
 
@@ -24,7 +24,7 @@ pub struct SharedState<T> {
     // It would probably require a lot of subscribers before paying off - which
     // itself requires heavy linear costs. So, I am skeptical still.
     pub subscribers: Mutex<Arc<HashSet<Change<T>>>>,
-    pub last_write: Mutex<ChangeVal<T>>,
+    pub last_write: Mutex<ChangeValNoWake<T>>,
     writer_notify: Option<Sender<()>>,
 }
 
@@ -46,7 +46,7 @@ where
     pub fn new(writer_notify: Sender<()>) -> Self {
         Self {
             subscribers: Mutex::new(Arc::new(HashSet::new())),
-            last_write: Mutex::new(ChangeVal::None),
+            last_write: Mutex::new(ChangeValNoWake::None),
             writer_notify: Some(writer_notify),
         }
     }
