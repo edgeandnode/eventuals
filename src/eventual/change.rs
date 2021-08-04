@@ -54,9 +54,8 @@ struct Busy<T>(T);
 
 impl<T> Busy<T> {
     fn new(value: T) -> Self {
-        if cfg!(feature = "trace") {
-            busy::set_busy();
-        }
+        #[cfg(feature = "trace")]
+        busy::set_busy();
         Self(value)
     }
 
@@ -64,9 +63,9 @@ impl<T> Busy<T> {
         unsafe {
             let inner = ptr::read(&mut self.0);
             mem::forget(self);
-            if cfg!(feature = "trace") {
-                busy::clear_busy();
-            }
+            #[cfg(feature = "trace")]
+            busy::clear_busy();
+
             inner
         }
     }
@@ -81,9 +80,8 @@ impl<T> Deref for Busy<T> {
 
 impl<T> Drop for Busy<T> {
     fn drop(&mut self) {
-        if cfg!(feature = "trace") {
-            busy::clear_busy();
-        }
+        #[cfg(feature = "trace")]
+        busy::clear_busy();
     }
 }
 

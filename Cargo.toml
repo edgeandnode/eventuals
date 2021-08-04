@@ -10,6 +10,7 @@ keywords = ["async", "future", "data-pipeline"]
 categories = ["asynchronous", "concurrency"]
 readme = "README.md"
 documentation = "https://docs.rs/eventuals"
+resolver = "2"
 
 [features]
 default = []
