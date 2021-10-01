@@ -1,6 +1,9 @@
 use eventuals::*;
 use std::sync::Arc;
-use tokio::{sync::Notify, test, time};
+use tokio::{
+    sync::{Mutex, Notify},
+    test, time,
+};
 
 struct NotifyOnDrop {
     notify: Arc<Notify>,
@@ -28,6 +31,24 @@ async fn produces_side_effect() {
 
     let _pipe = eventual.pipe(move |v| {
         handle_writer.write(v);
+    });
+
+    writer.write(1);
+
+    assert_eq!(Ok(1), handle.subscribe().next().await);
+}
+
+#[test]
+async fn produces_async_side_effect() {
+    let (handle_writer, handle) = Eventual::new();
+    let (mut writer, eventual) = Eventual::new();
+
+    let handle_writer = Arc::new(Mutex::new(handle_writer));
+    let _pipe = eventual.pipe_async(move |v| {
+        let handle_writer = handle_writer.clone();
+        async move {
+            handle_writer.lock().await.write(v);
+        }
     });
 
     writer.write(1);

@@ -28,6 +28,15 @@ pub trait EventualExt: Sized + IntoReader {
     }
 
     #[inline]
+    fn pipe_async<F, Fut>(self, f: F) -> PipeHandle
+    where
+        F: 'static + Send + FnMut(Self::Output) -> Fut,
+        Fut: Send + Future<Output = ()>,
+    {
+        pipe_async(self, f)
+    }
+
+    #[inline]
     fn map_with_retry<F, E, Ok, Err, Fut, FutE>(self, f: F, on_err: E) -> Eventual<Ok>
     where
         F: 'static + Send + FnMut(Self::Output) -> Fut,
