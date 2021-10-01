@@ -241,6 +241,25 @@ where
     }))
 }
 
+/// Similar to `pipe`, but allows for the side effect to be async.
+/// See also: `pipe`
+pub fn pipe_async<E, F, Fut>(reader: E, mut f: F) -> PipeHandle
+where
+    E: IntoReader,
+    F: 'static + Send + FnMut(E::Output) -> Fut,
+    Fut: Send + Future<Output = ()>,
+{
+    let mut reader = reader.into_reader();
+
+    #[allow(unreachable_code)]
+    PipeHandle::new(Eventual::spawn(|_writer| async move {
+        loop {
+            f(reader.next().await?).await;
+        }
+        drop(_writer);
+    }))
+}
+
 /// Pipe ceases when this is dropped
 #[must_use]
 pub struct PipeHandle {
