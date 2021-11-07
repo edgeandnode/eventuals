@@ -255,3 +255,23 @@ impl<T> Hash for Change<T> {
         self.inner.hash(state)
     }
 }
+
+impl<T> From<ChangeValNoWake<T>> for Option<T> {
+    fn from(from: ChangeValNoWake<T>) -> Self {
+        match from {
+            ChangeValNoWake::None => None,
+            ChangeValNoWake::Value(t) => Some(t),
+            ChangeValNoWake::Finalized(t) => t,
+        }
+    }
+}
+
+impl<'a, T> From<&'a ChangeValNoWake<T>> for Option<&'a T> {
+    fn from(from: &'a ChangeValNoWake<T>) -> Self {
+        match from {
+            ChangeValNoWake::None => None,
+            ChangeValNoWake::Value(t) => Some(t),
+            ChangeValNoWake::Finalized(t) => t.as_ref(),
+        }
+    }
+}
