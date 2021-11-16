@@ -20,17 +20,6 @@ async fn can_observe_value_written_after_subscribe() {
 }
 
 #[test]
-async fn can_observe_value_updated_after_subscribe() {
-    let (mut writer, eventual) = Eventual::new();
-    let mut read_0 = eventual.subscribe();
-    let inc = |prev: Option<&i32>| -> i32 { prev.map(|v| v + 1).unwrap_or_default() };
-    writer.update(inc);
-    assert_eq!(read_0.next().await, Ok(0));
-    writer.update(inc);
-    assert_eq!(read_0.next().await, Ok(1));
-}
-
-#[test]
 async fn can_observe_value_written_before_subscribe() {
     let eventual = Eventual::from_value(5);
     let mut read_0 = eventual.subscribe();

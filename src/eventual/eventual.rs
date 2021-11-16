@@ -1,4 +1,6 @@
-use super::change::ChangeReader;
+use std::ops::DerefMut;
+
+use super::change::{ChangeReader, ChangeValNoWake};
 use super::shared_state::SharedState;
 use super::*;
 use crate::IntoReader;
@@ -76,9 +78,11 @@ where
     /// Get a snapshot of the current value of this Eventual, if any,
     /// without waiting.
     pub fn value_immediate(&self) -> Option<T> {
-        let last_write = self.state.last_write.lock().unwrap();
-        let value: Option<&T> = last_write.deref().into();
-        value.cloned()
+        match self.state.last_write.lock().unwrap().deref_mut() {
+            ChangeValNoWake::None => None,
+            ChangeValNoWake::Value(t) => Some(t.clone()),
+            ChangeValNoWake::Finalized(t) => t.clone(),
+        }
     }
 
     #[cfg(feature = "trace")]
