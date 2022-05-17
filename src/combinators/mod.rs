@@ -77,8 +77,9 @@ macro_rules! impl_tuple {
 
                 Eventual::spawn(move |mut writer| async move {
                     // In the first section we wait until all values are available
-                    let mut count:usize = 0;
-                    $(let mut $t = None;)*
+                    let mut len: usize = 0;
+                    let mut count: usize = 0;
+                    $(let mut $t = None; len += 1;)*
                     let ($(mut $t,)*) = loop {
                         select! {
                             $(
@@ -89,7 +90,7 @@ macro_rules! impl_tuple {
                                 }
                             )*
                         }
-                        if count == 2 {
+                        if count == len {
                             break ($($t.unwrap()),*);
                         }
                     };
