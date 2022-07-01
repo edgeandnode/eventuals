@@ -60,14 +60,14 @@ impl<T> Busy<T> {
     }
 
     fn unbusy(mut self) -> T {
-        unsafe {
-            let inner = ptr::read(&mut self.0);
+        
+            let inner = unsafe {ptr::read(&mut self.0)};
             mem::forget(self);
             #[cfg(feature = "trace")]
             busy::clear_busy();
 
             inner
-        }
+        
     }
 }
 
